@@ -1,0 +1,50 @@
+***2D Rectangular Problem***
+***Problem tests for the Open Dimension Problem (ODP/S)***
+Input parameter file:
+***********************************************************************
+Total number of instances
+Number of different large objects (j)
+LargeObject[j].Width	LargeObject[j].Value
+Number of different item types (i)
+Item[i].Length	Item[i].Width	Item[i].Demand
+***********************************************************************
+510000
+1
+1000	1000
+10
+238	222	3
+233	345	5
+115	149	4
+249	227	1
+204	366	1
+192	288	4
+260	183	4
+170	233	1
+393	307	2
+364	211	4
+1
+1000	1000
+10
+184	187	2
+206	224	3
+153	288	2
+130	137	1
+331	175	4
+129	233	1
+151	217	1
+232	211	2
+314	177	3
+260	196	2
+1
+1000	1000
+10
+274	151	3
+198	269	5
+145	123	1
+234	239	3
+201	194	2
+141	220	4
+332	159	1
+253	144	5
+271	138	1
+330	122	1
