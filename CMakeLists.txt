@@ -28,10 +28,10 @@ FetchContent_MakeAvailable(SFML)
 add_executable(strippacker
         main.cpp
         StripPacker.cpp
-        BottomLeftStrategy.cpp
+        placement_strategies/BottomLeftStrategy.cpp
         CornerPoints.cpp
         DataLoaderOdp.cpp
-        BinDrawer.cpp
+        bin_drawer/BinDrawer.cpp
 )
 
 target_include_directories(strippacker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

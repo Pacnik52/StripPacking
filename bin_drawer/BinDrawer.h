@@ -2,7 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <filesystem>
-#include "BinpackData.h"
+#include "../BinpackData.h"
 
 namespace binpack {
     using namespace std;
@@ -16,7 +16,7 @@ namespace binpack {
             populateColors();
 
             // SFML 3 FIX: loadFromFile -> openFromFile
-            if (!font.openFromFile("../fnt/arial.ttf"))
+            if (!font.openFromFile("../bin_drawer/fnt/arial.ttf"))
             {
                 // Optional: Print error if font fails
                 // puts("Error loading font!");

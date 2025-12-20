@@ -4,8 +4,8 @@
 #include "DataLoaderOdp.h"
 #include "BinpackData.h"
 #include "StripPacker.h"
-#include "BottomLeftStrategy.h"
-#include "BinDrawer.h"
+#include "placement_strategies/BottomLeftStrategy.h"
+#include "bin_drawer/BinDrawer.h"
 
 bool PRINT_SOLUTION = true;
 bool DRAW_SOLUTION = true;
@@ -13,34 +13,17 @@ bool DRAW_SOLUTION = true;
 int main() {
     using namespace binpack;
 
-    // 1. Load the data
     std::cout << "Loading data..." << std::endl;
-    // Note: The DataLoaderOdp seems designed to load multiple datasets. We'll use just one for this example.
     std::vector<BinpackData> datasets;
-    // The 'odp' parameter seems to be a flag for a specific data format variant.
-    // Let's assume 'false' for now. We might need to inspect DataLoaderOdp.cpp to be sure.
-    DataLoaderOdp loader("../data/ODPS_small_test", true, 0, 1);
-    try {
-        loader.load(datasets);
-        if (datasets.empty()) {
-            std::cerr << "Error: No datasets were loaded. Check the file path and format." << std::endl;
-            return 1;
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "An exception occurred during data loading: " << e.what() << std::endl;
-        // The loader might throw an error if the file is not found, so we'll stub the data for now.
-        std::cerr << "Using stub data because loading failed." << std::endl;
-        datasets.emplace_back(20, 1000); // Example: 20 width, 1000 height for the strip
-        datasets[0].BoxTypes.push_back({0, 5, 5});
-        datasets[0].BoxTypes.push_back({1, 5, 5});
-        datasets[0].BoxTypes.push_back({2, 10, 10});
-        datasets[0].BoxTypes.push_back({3, 8, 8});
+    DataLoaderOdp loader("ODPS_one_problem", true, 0, 1);
+    loader.load(datasets);
+    if (datasets.empty()) {
+        std::cerr << "Error: No datasets were loaded. Check the file path and format." << std::endl;
+        return 1;
     }
 
     BinpackData& problemData = datasets[0];
 
-    // Create a vector of all boxes to be placed. The current data structure seems to imply
-    // a count for each type, but the strategy expects a simple list of boxes. We'll prepare that list.
     std::vector<BinpackData::BoxType> boxesToPlace;
     if (!problemData.BoxToLoad.empty()) {
         for(size_t i = 0; i < problemData.BoxToLoad.size(); ++i) {
@@ -49,7 +32,6 @@ int main() {
             }
         }
     } else {
-        // If BoxToLoad is empty, assume we place one of each type from BoxTypes for demonstration
         boxesToPlace = problemData.BoxTypes;
     }
 
@@ -57,10 +39,8 @@ int main() {
     std::cout << "Data loaded. Number of boxes to place: " << boxesToPlace.size() << std::endl;
     std::cout << "Bin dimensions: " << problemData.PSizeX << " x " << problemData.PSizeY << std::endl;
 
-    // 2. Create the placement strategy
     auto strategy = std::make_unique<BottomLeftStrategy>();
 
-    // 3. Create the packer and run it
     std::cout << "Starting packing process..." << std::endl;
     StripPacker packer(problemData, std::move(strategy));
     packer.pack(boxesToPlace);

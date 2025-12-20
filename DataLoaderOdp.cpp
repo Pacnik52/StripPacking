@@ -24,7 +24,7 @@ namespace binpack {
         std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
 
 
-        const std::filesystem::path FSP{filename + ".txt"};
+        const std::filesystem::path FSP{"../data/"+filename + ".txt"};
 
         filesystem::directory_entry dir_entry(FSP);
 

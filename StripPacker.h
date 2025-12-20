@@ -1,6 +1,6 @@
 #pragma once
 #include "BinpackData.h"
-#include "PlacementStrategy.h"
+#include "placement_strategies/PlacementStrategy.h"
 #include <memory>
 #include <vector>
 

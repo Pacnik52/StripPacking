@@ -7,7 +7,6 @@ StripPacker::StripPacker(BinpackData& data, std::unique_ptr<PlacementStrategy> s
 }
 
 void StripPacker::pack(const std::vector<BinpackData::BoxType>& boxes) {
-    // Delegate the actual packing to the strategy object.
     if (strategy) {
         strategy->place(boxes, data);
     }
