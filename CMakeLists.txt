@@ -29,9 +29,11 @@ add_executable(strippacker
         main.cpp
         StripPacker.cpp
         placement_strategies/BottomLeftStrategy.cpp
-        CornerPoints.cpp
+        placement_strategies/CornerPoints.cpp
         DataLoaderOdp.cpp
         bin_drawer/BinDrawer.cpp
+        placement_strategies/MaxRectsStrategy.cpp
+        placement_strategies/MaxRectsStrategy.h
 )
 
 target_include_directories(strippacker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

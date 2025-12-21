@@ -6,6 +6,7 @@
 #include "StripPacker.h"
 #include "placement_strategies/BottomLeftStrategy.h"
 #include "bin_drawer/BinDrawer.h"
+#include "placement_strategies/MaxRectsStrategy.h"
 
 bool PRINT_SOLUTION = true;
 bool DRAW_SOLUTION = true;
@@ -39,7 +40,8 @@ int main() {
     std::cout << "Data loaded. Number of boxes to place: " << boxesToPlace.size() << std::endl;
     std::cout << "Bin dimensions: " << problemData.PSizeX << " x " << problemData.PSizeY << std::endl;
 
-    auto strategy = std::make_unique<BottomLeftStrategy>();
+    // auto strategy = std::make_unique<BottomLeftStrategy>();
+    auto strategy = std::make_unique<MaxRectsStrategy>();
 
     std::cout << "Starting packing process..." << std::endl;
     StripPacker packer(problemData, std::move(strategy));

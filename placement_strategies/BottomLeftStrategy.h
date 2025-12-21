@@ -1,6 +1,6 @@
 #pragma once
 #include "PlacementStrategy.h"
-#include "../CornerPoints.h"
+#include "CornerPoints.h"
 
 namespace binpack {
 
