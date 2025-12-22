@@ -7,6 +7,7 @@
 #include "placement_strategies/BottomLeftStrategy.h"
 #include "bin_drawer/BinDrawer.h"
 #include "placement_strategies/MaxRectsStrategy.h"
+#include "placement_strategies/EvolutionaryStrategy.h"
 
 bool PRINT_SOLUTION = true;
 bool DRAW_SOLUTION = true;
@@ -16,7 +17,7 @@ int main() {
 
     std::cout << "Loading data..." << std::endl;
     std::vector<BinpackData> datasets;
-    DataLoaderOdp loader("ODPS_one_problem", true, 0, 1);
+    DataLoaderOdp loader("ODPS_small_test", true, 0, 1);
     loader.load(datasets);
     if (datasets.empty()) {
         std::cerr << "Error: No datasets were loaded. Check the file path and format." << std::endl;
@@ -41,7 +42,14 @@ int main() {
     std::cout << "Bin dimensions: " << problemData.PSizeX << " x " << problemData.PSizeY << std::endl;
 
     // auto strategy = std::make_unique<BottomLeftStrategy>();
-    auto strategy = std::make_unique<MaxRectsStrategy>();
+    // auto strategy = std::make_unique<MaxRectsStrategy>();
+
+    EvolutionaryStrategy::Params eaParams;
+    eaParams.populationSize = 50;   // Larger pop = better search, slower
+    eaParams.generations = 50;      // More gens = better convergence
+    eaParams.mutationRate = 0.3;    // Probability of swapping boxes
+
+    auto strategy = std::make_unique<EvolutionaryStrategy>(eaParams);
 
     std::cout << "Starting packing process..." << std::endl;
     StripPacker packer(problemData, std::move(strategy));

@@ -26,7 +26,6 @@ FetchContent_MakeAvailable(SFML)
 # ------------------------------------------------------------
 
 add_executable(strippacker
-        main.cpp
         StripPacker.cpp
         placement_strategies/BottomLeftStrategy.cpp
         placement_strategies/CornerPoints.cpp
@@ -34,6 +33,12 @@ add_executable(strippacker
         bin_drawer/BinDrawer.cpp
         placement_strategies/MaxRectsStrategy.cpp
         placement_strategies/MaxRectsStrategy.h
+        main.cpp
+        placement_strategies/Individual.h
+        placement_strategies/PermutationIndividual.h
+        placement_strategies/PermutationIndividual.cpp
+        placement_strategies/EvolutionaryStrategy.h
+        placement_strategies/EvolutionaryStrategy.cpp
 )
 
 target_include_directories(strippacker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
