@@ -8,38 +8,49 @@
 #include "bin_drawer/BinDrawer.h"
 #include "placement_strategies/MaxRectsStrategy.h"
 #include "placement_strategies/EvolutionaryStrategy.h"
+#include <numeric>
+#include <cmath>
 
 bool PRINT_SOLUTION = true;
 bool DRAW_SOLUTION = true;
+
+float
 
 int main() {
     using namespace binpack;
 
     std::cout << "Loading data..." << std::endl;
     std::vector<BinpackData> datasets;
-    DataLoaderOdp loader("ODPS_small_test", true, 0, 1);
+    DataLoaderOdp loader("ODPS_data_10_1-5_1", true, 0, 10);
     loader.load(datasets);
     if (datasets.empty()) {
         std::cerr << "Error: No datasets were loaded. Check the file path and format." << std::endl;
         return 1;
     }
 
-    BinpackData& problemData = datasets[0];
+    std::vector<double> heights;
+    int bestIdx = -1, worstIdx = -1;
+    double bestVal = std::numeric_limits<double>::max();
+    double worstVal = std::numeric_limits<double>::lowest();
 
-    std::vector<BinpackData::BoxType> boxesToPlace;
-    if (!problemData.BoxToLoad.empty()) {
-        for(size_t i = 0; i < problemData.BoxToLoad.size(); ++i) {
-            for(int j = 0; j < problemData.BoxToLoad[i]; ++j) {
-                boxesToPlace.push_back(problemData.BoxTypes[i]);
-            }
-        }
-    } else {
-        boxesToPlace = problemData.BoxTypes;
+    BinDrawer drawer;
+    std::string outputDir = "../solutions";
+    if (!std::filesystem::exists(outputDir)) {
+        std::filesystem::create_directory(outputDir);
     }
 
-
-    std::cout << "Data loaded. Number of boxes to place: " << boxesToPlace.size() << std::endl;
-    std::cout << "Bin dimensions: " << problemData.PSizeX << " x " << problemData.PSizeY << std::endl;
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        BinpackData& problemData = datasets[i];
+        std::vector<BinpackData::BoxType> boxesToPlace;
+        if (!problemData.BoxToLoad.empty()) {
+            for(size_t j = 0; j < problemData.BoxToLoad.size(); ++j) {
+                for(int k = 0; k < problemData.BoxToLoad[j]; ++k) {
+                    boxesToPlace.push_back(problemData.BoxTypes[j]);
+                }
+            }
+        } else {
+            boxesToPlace = problemData.BoxTypes;
+        }
 
     // auto strategy = std::make_unique<BottomLeftStrategy>();
     // auto strategy = std::make_unique<MaxRectsStrategy>();
@@ -51,40 +62,49 @@ int main() {
 
     auto strategy = std::make_unique<EvolutionaryStrategy>(eaParams);
 
-    std::cout << "Starting packing process..." << std::endl;
+    // std::cout << "Starting packing process..." << std::endl;
     StripPacker packer(problemData, std::move(strategy));
     packer.pack(boxesToPlace);
 
-    if (PRINT_SOLUTION == true) {
-        std::cout << "Packing complete." << std::endl;
-        if (problemData.Solution.BPV.empty()) {
-            std::cout << "No boxes were placed." << std::endl;
-        } else {
-            std::cout << "Placed " << problemData.Solution.BPV.size() << " boxes:" << std::endl;
-            for (const auto& placedBox : problemData.Solution.BPV) {
-                int boxTypeIdx = placedBox.first;
-                const auto& pos = placedBox.second;
-                const auto& boxType = problemData.BoxTypes[boxTypeIdx];
-                std::cout << "  - Box type " << boxTypeIdx << " (" << boxType.SizeX << "x" << boxType.SizeY
-                          << ") at (" << pos.X << ", " << pos.Y << ")"
-                          << (pos.Rotated ? " [rotated]" : "") << std::endl;
+        double height = problemData.getObj();
+        heights.push_back(height);
+        if (height < bestVal) { bestVal = height; bestIdx = i; }
+        if (height > worstVal) { worstVal = height; worstIdx = i; }
+
+        if (PRINT_SOLUTION) {
+            std::cout << "Problem " << i << ": Packing complete. Height: " << height << std::endl;
+            if (problemData.Solution.BPV.empty()) {
+                std::cout << "No boxes were placed." << std::endl;
+            } else {
+                // std::cout << "Placed " << problemData.Solution.BPV.size() << " boxes:" << std::endl;
+                for (const auto& placedBox : problemData.Solution.BPV) {
+                    int boxTypeIdx = placedBox.first;
+                    const auto& pos = placedBox.second;
+                    const auto& boxType = problemData.BoxTypes[boxTypeIdx];
+                    // std::cout << "  - Box type " << boxTypeIdx << " (" << boxType.SizeX << "x" << boxType.SizeY
+                    //           << ") at (" << pos.X << ", " << pos.Y << ")"
+                    //           << (pos.Rotated ? " [rotated]" : "") << std::endl;
+                }
             }
         }
     }
 
-    if (DRAW_SOLUTION == true) {
-        std::cout << "Generating solution image..." << std::endl;
+    // Statystyki
+    double sum = std::accumulate(heights.begin(), heights.end(), 0.0);
+    double mean = sum / heights.size();
+    double sq_sum = std::inner_product(heights.begin(), heights.end(), heights.begin(), 0.0);
+    double stdev = std::sqrt(sq_sum / heights.size() - mean * mean);
+    std::cout << "\nSTATS:" << std::endl;
+    std::cout << "Avg: " << mean << std::endl;
+    std::cout << "Std: " << stdev << std::endl;
+    std::cout << "Min: " << bestVal << " (problem " << bestIdx << ")" << std::endl;
+    std::cout << "Max: " << worstVal << " (problem " << worstIdx << ")" << std::endl;
 
-        std::string outputDir = "../solutions";
-        if (!std::filesystem::exists(outputDir)) {
-            std::filesystem::create_directory(outputDir);
-        }
-
-        BinDrawer drawer;
-
-        drawer.drawToFile(problemData, false, outputDir, ".png");
-
-        std::cout << "Solution saved to " << outputDir << "/" << problemData.fileName << "_bin00.png" << std::endl;
+    // Zapisz najlepsze i najgorsze rozwiązanie do jednego pliku (np. best_worst_solution.png)
+    if (DRAW_SOLUTION && bestIdx != -1 && worstIdx != -1) {
+        drawer.drawToFile(datasets[bestIdx], false, outputDir, "_best.png");
+        drawer.drawToFile(datasets[worstIdx], false, outputDir, "_worst.png");
+        std::cout << "Najlepsze i najgorsze rozwiazanie zapisane do plikow: " << std::endl;
     }
     return 0;
 }

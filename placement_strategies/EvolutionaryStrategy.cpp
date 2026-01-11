@@ -23,7 +23,7 @@ void EvolutionaryStrategy::initializePopulation(size_t genomeSize) {
 }
 
 void EvolutionaryStrategy::place(const std::vector<BinpackData::BoxType>& boxes, BinpackData& data) {
-    std::cout << "EA: Initializing population with " << params.populationSize << " individuals..." << std::endl;
+    // std::cout << "EA: Initializing population with " << params.populationSize << " individuals..." << std::endl;
     initializePopulation(boxes.size());
 
     // Best solution found so far (Genotype + Fitness)
@@ -45,7 +45,7 @@ void EvolutionaryStrategy::place(const std::vector<BinpackData::BoxType>& boxes,
                 bestGlobal = ind->clone();
                 // IMPORTANT: Save the actual layout to the real 'data' object
                 data = tempResult;
-                std::cout << "Gen " << gen << " [New Best] Height: " << fit << std::endl;
+                // std::cout << "Gen " << gen << " [New Best] Height: " << fit << std::endl;
             }
 
             if (fit < bestGenFitness) bestGenFitness = fit;
@@ -73,7 +73,7 @@ void EvolutionaryStrategy::place(const std::vector<BinpackData::BoxType>& boxes,
 
     // Final step: Ensure 'data' contains the best solution found at the very end
     if (bestGlobal) {
-        std::cout << "EA Finished. Final Best Height: " << bestGlobal->fitness << std::endl;
+        // std::cout << "EA Finished. Final Best Height: " << bestGlobal->fitness << std::endl;
         bestGlobal->evaluate(boxes, data);
     }
 }
