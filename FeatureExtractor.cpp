@@ -1,13 +1,12 @@
-// FeatureExtractor.cpp
 #include "FeatureExtractor.h"
-#include "utils.h" // scaleTanh, scale1
-#include <numeric>
+#include "utils.h"
+#include <algorithm>
 
 std::vector<double> FeatureExtractor::extract(
     const StripBoard& board,
     const binpack::BinpackData::BoxType& box,
     bool rotated,
-    const Point& pos,
+    const binpack::BinpackData::Pos& pos,
     const std::vector<binpack::BinpackData::BoxType>& remainingBoxes
 ) {
     std::vector<double> f;
@@ -16,84 +15,77 @@ std::vector<double> FeatureExtractor::extract(
     int w = rotated ? box.SizeY : box.SizeX;
     int h = rotated ? box.SizeX : box.SizeY;
 
-    // --- I. Info o elemencie ---
-    f.push_back(binpack::scale1(0, 1000, w)); // 1. Width
-    f.push_back(binpack::scale1(0, 1000, h)); // 2. Height
-
-    // --- II. Info o pozostałych elementach ---
+    // width
+    f.push_back(binpack::scale1(0, 1000, w));
+    // height
+    f.push_back(binpack::scale1(0, 1000, h));
+    // total area of the box
     double totalArea = 0;
+    // area of boxes of the same type
     double typeArea = 0;
-    int typeCount = 0;
-
-    // Identyfikacja typu po wymiarach (uproszczona)
     auto isSameType = [&](const auto& b){
         return (b.SizeX == box.SizeX && b.SizeY == box.SizeY);
     };
-
     for(const auto& b : remainingBoxes) {
         double area = (double)b.SizeX * b.SizeY;
         totalArea += area;
-        if(isSameType(b)) {
-            typeArea += area;
-            typeCount++;
-        }
+        if(isSameType(b)) typeArea += area;
     }
+    f.push_back(binpack::scaleTanh(totalArea / 1000000.0));
+    f.push_back(binpack::scaleTanh(typeArea / 100000.0));
+    // total area of the remaining boxes
+    f.push_back(binpack::scaleTanh(remainingBoxes.size() / 100.0));
 
-    // Używamy scaleTanh dla dużych wartości zgodnie z art.
-    f.push_back(binpack::scaleTanh(totalArea / 100000.0)); // 3. Remaining area
-    f.push_back(binpack::scaleTanh(typeArea / 10000.0));   // 4. Type remaining area
-    f.push_back(binpack::scaleTanh(remainingBoxes.size())); // 5. Num items
+    int newTop = pos.Y + h;
+    int currentH = std::max(board.getHeight(), newTop);
 
-    // --- III. Info o stanie po wstawieniu ---
-    int newHeight = std::max(board.getHeight(), pos.y + h);
-
-    // 6-13. ID view (8 punktów)
-    auto profile = board.getSkylineProfile(8, newHeight);
+    // skyline profile
+    auto profile = board.getSkylineProfile(8, newTop);
     for(double val : profile) {
         f.push_back(binpack::scaleTanh(val / 100.0));
     }
 
-    // 14. Horizontal Mismatch (uproszczony)
-    // Sprawdzamy sąsiada po lewej i prawej na poziomie y
-    // Wymagałoby dokładniejszego query do skyline, tutaj aproksymacja
-    f.push_back(0.0);
+    // horizontal mismatch
+    int leftH = (pos.X > 0) ? board.getSkylineHeightAt(pos.X - 1) : 99999; // ściana
+    int rightH = (pos.X + w < board.getWidth()) ? board.getSkylineHeightAt(pos.X + w) : 99999; // ściana
+    double mismatch = 0;
+    if (leftH < pos.Y + h) mismatch += (pos.Y + h - leftH);
+    if (rightH < pos.Y + h) mismatch += (pos.Y + h - rightH);
+    f.push_back(binpack::scaleTanh(mismatch / 100.0));
 
-    // 15. Vertical Mismatch
-    // Czy góra elementu pasuje do sąsiadów?
-    f.push_back(0.0);
+    // vertical mismatch
+    double vMismatch = 0;
+    if (pos.Y != leftH && leftH != 99999) vMismatch += std::abs(pos.Y - leftH);
+    if (pos.Y != rightH && rightH != 99999) vMismatch += std::abs(pos.Y - rightH);
+    f.push_back(binpack::scaleTanh(vMismatch / 100.0));
 
-    // 16. Wasted Space
-    double wasted = board.calculateWastedSpace(pos.x, pos.y, w, h);
-    f.push_back(binpack::scaleTanh(wasted / 1000.0));
+    // wasted space
+    double wasted = board.calculateWastedSpace(pos.X, pos.Y, w, h);
+    f.push_back(binpack::scaleTanh(wasted / 5000.0));
 
-    // 17. Horizontal Size Fit (dx mod w)/w
-    int distToRight = board.getWidth() - (pos.x + w);
-    double hFit = (double)(distToRight % w) / w;
+    // hirozontal size fit
+    int distToRight = board.getWidth() - (pos.X + w);
+    double hFit = (w > 0) ? (double)(distToRight % w) / w : 0;
     f.push_back(hFit);
 
-    // 18. Vertical Size Fit (dy mod l)/l
-    int distToTop = newHeight - (pos.y + h); // z definicji artykułu
-    double vFit = -1.0;
-    // Artykuł definiuje to względem "current height".
-    // Jeśli pos.y + h wystaje powyżej obecnej max wysokości, to dy jest ujemne
-    int dy = board.getHeight() - (pos.y + h);
-    if (dy < 0) vFit = -1.0;
-    else vFit = (double)(dy % h) / h;
+    // vertical Size Fit
+    int distToTop = currentH - (pos.Y + h);
+    double vFit = (h > 0) ? (double)(abs(distToTop) % h) / h : 0;
     f.push_back(vFit);
 
-    // 19. Horizontal Distance
+    // horizontal Distance
     f.push_back(binpack::scale1(0, board.getWidth(), distToRight));
 
-    // 20. Vertical Distance
-    f.push_back(binpack::scaleTanh(dy)); // Dystans od góry elementu do max height
+    // vertical Distance
+    f.push_back(binpack::scaleTanh((double)distToTop / 100.0));
 
-    // 21. Horizontal Position (left)
-    f.push_back(binpack::scale1(0, board.getWidth(), pos.x));
+    // horizontal Pos
+    f.push_back(binpack::scale1(0, board.getWidth(), pos.X));
 
-    // 22. Vertical Position (bottom)
-    f.push_back(binpack::scaleTanh(pos.y));
+    // vertical Pos
+    f.push_back(binpack::scaleTanh(pos.Y / 1000.0));
 
-    // Dopełnienie do 22 cech jeśli coś pominęliśmy (np. mismatch dokładniej)
+    // for now!
     while(f.size() < 22) f.push_back(0.0);
 
     return f;

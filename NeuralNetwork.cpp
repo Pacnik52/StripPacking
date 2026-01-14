@@ -1,4 +1,3 @@
-// NeuralNetwork.cpp
 #include "NeuralNetwork.h"
 #include <cmath>
 
@@ -14,17 +13,17 @@ Eigen::VectorXd NeuralNetwork::activationTanh(const Eigen::VectorXd& x) const {
 
 void NeuralNetwork::setWeights(const double* genome) {
     int idx = 0;
-    // Warstwa 1
+    // Layer 1
     for(int i=0; i<32; ++i) {
         b1(i) = genome[idx++];
         for(int j=0; j<22; ++j) W1(i,j) = genome[idx++];
     }
-    // Warstwa 2
+    // Layer 2
     for(int i=0; i<12; ++i) {
         b2(i) = genome[idx++];
         for(int j=0; j<32; ++j) W2(i,j) = genome[idx++];
     }
-    // Wyjście
+    // Layer 3
     for(int i=0; i<1; ++i) {
         b3(i) = genome[idx++];
         for(int j=0; j<12; ++j) W3(i,j) = genome[idx++];
@@ -36,7 +35,6 @@ double NeuralNetwork::predict(const std::vector<double>& inputs) {
 
     Eigen::VectorXd h1 = activationTanh(W1 * x + b1);
     Eigen::VectorXd h2 = activationTanh(W2 * h1 + b2);
-    // Wyjście liniowe (zgodnie z artykułem)
     Eigen::VectorXd out = W3 * h2 + b3;
 
     return out(0);

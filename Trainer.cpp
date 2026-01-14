@@ -16,14 +16,10 @@ extern "C" {
 #include "Trainer.h"
 #include "NeuralStrategy.h"
 #include <iostream>
-#include <numeric>
-#include <algorithm>
 #include <vector>
 
-// Inicjalizacja statycznego wskaźnika
 std::vector<binpack::BinpackData>* Trainer::trainingData = nullptr;
 
-// Wrapper funkcji celu (musi być poza klasą, zgodny z C)
 double fitfunc_wrapper(double const *x, int dim) {
     if (!Trainer::trainingData) return 0.0;
 
@@ -34,10 +30,7 @@ double fitfunc_wrapper(double const *x, int dim) {
     double totalFillFactor = 0;
     int count = 0;
 
-    // Bierzemy max 5 przykładów dla szybkości (w wersji finalnej zwiększ to)
-    int limit = std::min((int)Trainer::trainingData->size(), 10);
-
-    for(int i = 0; i < limit; ++i) {
+    for(int i = 0; i < (int)Trainer::trainingData->size(); ++i) {
         binpack::BinpackData instance = (*Trainer::trainingData)[i];
         double ff = strategy.solve(instance);
         totalFillFactor += ff;
@@ -46,7 +39,6 @@ double fitfunc_wrapper(double const *x, int dim) {
 
     double avgFillFactor = (count > 0) ? (totalFillFactor / count) : 0.0;
 
-    // Minimalizujemy ujemny fill factor
     return -avgFillFactor;
 }
 
@@ -62,7 +54,6 @@ void Trainer::train(std::vector<binpack::BinpackData>& data, int generations) {
 
     double* arFunvals;
 
-    // Używamy funkcji z globalnego zakresu
     arFunvals = cmaes_init(&evo, dim, xstart.data(), stddev.data(), 0, 0, NULL);
 
     std::cout << "Starting CMA-ES training..." << std::endl;
@@ -95,5 +86,5 @@ void Trainer::train(std::vector<binpack::BinpackData>& data, int generations) {
 }
 
 void Trainer::saveBest(const std::string& filename) {
-    std::cout << "Saving best network (not implemented)" << std::endl;
+    return;
 }

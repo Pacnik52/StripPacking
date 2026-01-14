@@ -1,16 +1,13 @@
-// NeuralStrategy.cpp
 #include "NeuralStrategy.h"
 #include "StripBoard.h"
 #include "FeatureExtractor.h"
 #include <limits>
-#include <iostream>
 
 NeuralStrategy::NeuralStrategy(NeuralNetwork& network) : net(network) {}
 
 double NeuralStrategy::solve(binpack::BinpackData& data) {
     StripBoard board(data.PSizeX);
 
-    // Przygotowanie listy wszystkich pudełek do ułożenia (rozpakowanie BoxToLoad)
     std::vector<binpack::BinpackData::BoxType> remaining;
     for(size_t i=0; i<data.BoxToLoad.size(); ++i) {
         for(int k=0; k<data.BoxToLoad[i]; ++k) {
@@ -27,35 +24,35 @@ double NeuralStrategy::solve(binpack::BinpackData& data) {
         double bestScore = -std::numeric_limits<double>::infinity();
         int bestIdx = -1;
         bool bestRotated = false;
-        Point bestPos = {-1, -1};
+
+        binpack::BinpackData::Pos bestPos;
+        bestPos.X = -1;
+        bestPos.Y = -1;
+
         bool foundAnyMove = false;
 
-        // Pobierz możliwe punkty wstawienia
         auto corners = board.getCornerPoints();
 
-        // 1. Iteruj po wszystkich dostępnych typach pudełek (tylko unikalne typy dla wydajności)
-        // W artykule: "Only those element types for which there are still unpacked elements"
+        // for every box in remaining
         for(size_t i=0; i<remaining.size(); ++i) {
-            // Mała optymalizacja: jeśli mamy 100 takich samych pudełek, sprawdzamy tylko pierwsze
+            // if that type of box was already checked
             if (i > 0 && remaining[i] == remaining[i-1]) continue;
 
             const auto& box = remaining[i];
 
-            // 2. Iteruj po rotacjach (0 i 90 stopni)
+            // for every rotation
             for(int r=0; r<2; ++r) {
                 bool rot = (r == 1);
                 int w = rot ? box.SizeY : box.SizeX;
                 int h = rot ? box.SizeX : box.SizeY;
 
-                // 3. Iteruj po punktach narożnych
+                // for every corner point
                 for(const auto& pt : corners) {
-                    if (board.fits(pt.x, pt.y, w, h)) {
+                    if (board.fits(pt.X, pt.Y, w, h)) {
                         foundAnyMove = true;
 
-                        // Ekstrakcja cech dla tego ruchu
                         auto features = FeatureExtractor::extract(board, box, rot, pt, remaining);
 
-                        // Ocena siecią
                         double score = net.predict(features);
 
                         if (score > bestScore) {
@@ -75,43 +72,49 @@ double NeuralStrategy::solve(binpack::BinpackData& data) {
             int w = bestRotated ? box.SizeY : box.SizeX;
             int h = bestRotated ? box.SizeX : box.SizeY;
 
-            board.place({bestPos.x, bestPos.y, w, h});
+            // ZMIANA: board.place oczekuje Rect {x, y, w, h}
+            // Używamy .X i .Y ze znalezionego bestPos
+            board.place({bestPos.X, bestPos.Y, w, h});
 
-            // Zapisz wynik w formacie oczekiwanym przez BinpackData
+            // Zapisz wynik
             binpack::BinpackData::Pos pos;
-            pos.X = bestPos.x;
-            pos.Y = bestPos.y;
+            pos.X = bestPos.X;
+            pos.Y = bestPos.Y;
             pos.Rotated = bestRotated;
-            // Musimy znaleźć oryginalny indeks typu pudełka
-            // (w tym uproszczonym kodzie zakładamy, że idx w BoxType jest poprawny)
+
             placedPositions.push_back({box.idx, pos});
 
-            // Usuń z listy do zrobienia
+            // Usuń z listy
             remaining.erase(remaining.begin() + bestIdx);
         } else {
-            // Nie znaleziono ruchu (np. brak miejsca w punktach narożnych - rzadkie przy infinite height)
-            // W takiej sytuacji można spróbować położyć "gdziekolwiek" na górze,
-            // ale Strip Packing zazwyczaj zawsze pozwala położyć coś na górze skyline.
+            // Fallback strategy (gdyby sieć/cornery nie znalazły miejsca, co jest rzadkie w StripPacking)
             if (!foundAnyMove && !remaining.empty()) {
-                // Fallback: połóż pierwszy element na (0, maxH)
                 const auto& box = remaining[0];
                 int y = board.getHeight();
+
+                // Kładziemy na samej górze (bezpieczne miejsce)
                 board.place({0, y, box.SizeX, box.SizeY});
-                binpack::BinpackData::Pos pos(0, y, false, 0);
+
+                binpack::BinpackData::Pos pos;
+                pos.X = 0;
+                pos.Y = y;
+                pos.Rotated = false;
+
                 placedPositions.push_back({box.idx, pos});
                 remaining.erase(remaining.begin());
             } else {
-                break; // Powinno być niemożliwe w Strip Packing
+                break;
             }
         }
     }
 
-    // Zapisz rozwiązanie do obiektu
+    // Finalizacja
     data.Solution.BPV = placedPositions;
-    data.Solution.obj = board.getHeight(); // Minimalizujemy wysokość
+    data.Solution.obj = board.getHeight();
 
     // Oblicz Fill Factor
     double stripArea = (double)data.PSizeX * board.getHeight();
     if (stripArea == 0) return 0.0;
+
     return totalItemsArea / stripArea;
 }
