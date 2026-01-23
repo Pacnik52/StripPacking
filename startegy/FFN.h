@@ -5,6 +5,7 @@
 #include <fstream>
 #include <Eigen/Dense>
 #include <boost/serialization/vector.hpp>
+#include <filesystem>
 
 namespace nnutils {
     using namespace std;
@@ -70,10 +71,13 @@ namespace nnutils {
         }
 
         // Zapisuje sieć do pliku tekstowego
-        void save(const std::string& filename) {
-            std::ofstream file(filename);
+        void save(const std::string& outputDir, const std::string& filename) {
+            namespace fs = std::filesystem;
+            fs::create_directories(outputDir);
+            fs::path filePath = fs::path(outputDir) / filename;
+            std::ofstream file(filePath);
             if (!file.is_open()) {
-                std::cerr << "Error: Cannot open file for writing: " << filename << std::endl;
+                std::cerr << "Error: Cannot open file for writing: " << filePath << std::endl;
                 return;
             }
 
@@ -108,7 +112,7 @@ namespace nnutils {
             writeVector(b3);
 
             file.close();
-            std::cout << "Network saved to " << filename << std::endl;
+            std::cout << "Network saved to " << filePath << std::endl;
         }
 
         // Wczytuje sieć z pliku
@@ -180,6 +184,33 @@ namespace nnutils {
             offset += w3_size;
 
             b3 = Map<const VectorXd>(params + offset, conf.outputSize);
+        }
+
+        // Zwraca aktualne parametry sieci do przekazanego wskaźnika (w tej samej kolejności co setParams)
+        void getParams(double *params, int n) const {
+            if (n != totalParams) {
+                std::cerr << "Error: Parameter size mismatch. Expected " << totalParams << ", got " << n << std::endl;
+                return;
+            }
+            int offset = 0;
+            // Warstwa 1
+            for (int r = 0; r < W1.rows(); ++r)
+                for (int c = 0; c < W1.cols(); ++c)
+                    params[offset++] = W1(r, c);
+            for (int i = 0; i < b1.size(); ++i)
+                params[offset++] = b1(i);
+            // Warstwa 2
+            for (int r = 0; r < W2.rows(); ++r)
+                for (int c = 0; c < W2.cols(); ++c)
+                    params[offset++] = W2(r, c);
+            for (int i = 0; i < b2.size(); ++i)
+                params[offset++] = b2(i);
+            // Warstwa 3
+            for (int r = 0; r < W3.rows(); ++r)
+                for (int c = 0; c < W3.cols(); ++c)
+                    params[offset++] = W3(r, c);
+            for (int i = 0; i < b3.size(); ++i)
+                params[offset++] = b3(i);
         }
 
         // Forward Pass - obliczenie oceny decyzji
