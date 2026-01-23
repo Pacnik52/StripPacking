@@ -5,8 +5,8 @@
 #pragma once
 #include <vector>
 #include <string>
-#include "BinpackData.h"
-#include "utils.h"
+#include "../bin/BinpackData.h"
+#include "../utils.h"
 
 namespace binpack {
     using namespace std;

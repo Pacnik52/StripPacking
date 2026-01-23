@@ -2,7 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <filesystem>
-#include "../BinpackData.h"
+#include "../bin/BinpackData.h"
 
 namespace binpack {
     using namespace std;

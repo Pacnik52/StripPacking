@@ -1,110 +1,111 @@
 #include <iostream>
 #include <vector>
-#include <memory>
-#include "DataLoaderOdp.h"
-#include "BinpackData.h"
-#include "StripPacker.h"
-#include "placement_strategies/BottomLeftStrategy.h"
+#include "startegy/FFN.h"
+#include "startegy/BinpackConstructionHeuristic.h"
+#include "startegy/EvolutionaryAlgorithm.h"
+#include "bin_reader/DataLoaderOdp.h"
+#include "bin/BinpackData.h"
 #include "bin_drawer/BinDrawer.h"
-#include "placement_strategies/MaxRectsStrategy.h"
-#include "placement_strategies/EvolutionaryStrategy.h"
-#include <numeric>
-#include <cmath>
 
-bool PRINT_SOLUTION = true;
-bool DRAW_SOLUTION = true;
+using namespace binpack;
+using namespace std;
 
-float
+const bool DRAW_SOLUTION = true;
+const std::string DATA_FILENAME = "ODPS_data_10_1-5_1";
+const int DATASET_SIZE = 100;
 
-int main() {
-    using namespace binpack;
+void print_solutions(std::vector<BinpackData>& datasets,
+                     BinpackConstructionHeuristic<nnutils::FFN>& heuristic,
+                     const std::string& outputDir) {
 
-    std::cout << "Loading data..." << std::endl;
-    std::vector<BinpackData> datasets;
-    DataLoaderOdp loader("ODPS_data_10_1-5_1", true, 0, 10);
-    loader.load(datasets);
-    if (datasets.empty()) {
-        std::cerr << "Error: No datasets were loaded. Check the file path and format." << std::endl;
-        return 1;
-    }
-
-    std::vector<double> heights;
-    int bestIdx = -1, worstIdx = -1;
-    double bestVal = std::numeric_limits<double>::max();
-    double worstVal = std::numeric_limits<double>::lowest();
-
-    BinDrawer drawer;
-    std::string outputDir = "../solutions";
     if (!std::filesystem::exists(outputDir)) {
         std::filesystem::create_directory(outputDir);
     }
 
+    BinDrawer drawer;
+    std::cout << "\nGenerating final solutions and images..." << std::endl;
+
+    double totalFF = 0;
+
     for (size_t i = 0; i < datasets.size(); ++i) {
-        BinpackData& problemData = datasets[i];
-        std::vector<BinpackData::BoxType> boxesToPlace;
-        if (!problemData.BoxToLoad.empty()) {
-            for(size_t j = 0; j < problemData.BoxToLoad.size(); ++j) {
-                for(int k = 0; k < problemData.BoxToLoad[j]; ++k) {
-                    boxesToPlace.push_back(problemData.BoxTypes[j]);
-                }
-            }
-        } else {
-            boxesToPlace = problemData.BoxTypes;
-        }
+        BinpackData& problem = datasets[i];
 
-    // auto strategy = std::make_unique<BottomLeftStrategy>();
-    // auto strategy = std::make_unique<MaxRectsStrategy>();
+        auto solution = heuristic.run(problem);
 
-    EvolutionaryStrategy::Params eaParams;
-    eaParams.populationSize = 50;   // Larger pop = better search, slower
-    eaParams.generations = 50;      // More gens = better convergence
-    eaParams.mutationRate = 0.3;    // Probability of swapping boxes
+        problem.Solution = solution;
 
-    auto strategy = std::make_unique<EvolutionaryStrategy>(eaParams);
+        // 3. Pobierz Fill Factor (zakładamy, że getObj zwraca FF dla StripPacking w tej implementacji)
+        double ff = solution.getObj();
+        totalFF += ff;
 
-    // std::cout << "Starting packing process..." << std::endl;
-    StripPacker packer(problemData, std::move(strategy));
-    packer.pack(boxesToPlace);
+        std::cout << "Instance " << problem.fileName
+                  << ": Fill Factor = " << ff * 100.0 << "%" << std::endl;
 
-        double height = problemData.getObj();
-        heights.push_back(height);
-        if (height < bestVal) { bestVal = height; bestIdx = i; }
-        if (height > worstVal) { worstVal = height; worstIdx = i; }
-
-        if (PRINT_SOLUTION) {
-            std::cout << "Problem " << i << ": Packing complete. Height: " << height << std::endl;
-            if (problemData.Solution.BPV.empty()) {
-                std::cout << "No boxes were placed." << std::endl;
-            } else {
-                // std::cout << "Placed " << problemData.Solution.BPV.size() << " boxes:" << std::endl;
-                for (const auto& placedBox : problemData.Solution.BPV) {
-                    int boxTypeIdx = placedBox.first;
-                    const auto& pos = placedBox.second;
-                    const auto& boxType = problemData.BoxTypes[boxTypeIdx];
-                    // std::cout << "  - Box type " << boxTypeIdx << " (" << boxType.SizeX << "x" << boxType.SizeY
-                    //           << ") at (" << pos.X << ", " << pos.Y << ")"
-                    //           << (pos.Rotated ? " [rotated]" : "") << std::endl;
-                }
-            }
+        // 4. Narysuj rozwiązanie
+        if (DRAW_SOLUTION) {
+            // Uwaga: filename, false (np. nie tylko kontury), katalog, rozszerzenie
+            drawer.drawToFile(problem, false, outputDir, ".png");
         }
     }
 
-    // Statystyki
-    double sum = std::accumulate(heights.begin(), heights.end(), 0.0);
-    double mean = sum / heights.size();
-    double sq_sum = std::inner_product(heights.begin(), heights.end(), heights.begin(), 0.0);
-    double stdev = std::sqrt(sq_sum / heights.size() - mean * mean);
-    std::cout << "\nSTATS:" << std::endl;
-    std::cout << "Avg: " << mean << std::endl;
-    std::cout << "Std: " << stdev << std::endl;
-    std::cout << "Min: " << bestVal << " (problem " << bestIdx << ")" << std::endl;
-    std::cout << "Max: " << worstVal << " (problem " << worstIdx << ")" << std::endl;
-
-    // Zapisz najlepsze i najgorsze rozwiązanie do jednego pliku (np. best_worst_solution.png)
-    if (DRAW_SOLUTION && bestIdx != -1 && worstIdx != -1) {
-        drawer.drawToFile(datasets[bestIdx], false, outputDir, "_best.png");
-        drawer.drawToFile(datasets[worstIdx], false, outputDir, "_worst.png");
-        std::cout << "Najlepsze i najgorsze rozwiazanie zapisane do plikow: " << std::endl;
+    if (!datasets.empty()) {
+        std::cout << "Average Fill Factor: " << (totalFF / datasets.size()) * 100.0 << "%" << std::endl;
+        std::cout << "Solutions saved to directory: " << outputDir << "/" << std::endl;
     }
+}
+
+int main() {
+    // 1. Konfiguracja sieci neuronowej
+    nnutils::FFN::Config ffnConfig;
+    ffnConfig.inputSize = 25; // Dopasowane do BinpackConstructionHeuristic.h
+    ffnConfig.hidden1Size = 32;
+    ffnConfig.hidden2Size = 12;
+    ffnConfig.outputSize = 1;
+
+    // 2. Konfiguracja heurystyki
+    BinpackConstructionHeuristic<nnutils::FFN>::ConfigType heuristicConfig;
+    heuristicConfig.stripPacking = true; // Rozwiązujemy problem Strip Packing (minimalizacja wysokości)
+    heuristicConfig.binPackInt = false;
+    heuristicConfig.AConf = ffnConfig;
+
+    // Tworzenie prototypu heurystyki (używany do klonowania w EA)
+    BinpackConstructionHeuristic<nnutils::FFN> heuristic(heuristicConfig);
+
+    // Loading data from file
+    std::cout << "Loading data..." << std::endl;
+    std::vector<BinpackData> datasets;
+    DataLoaderOdp loader(DATA_FILENAME, true, 0, DATASET_SIZE);
+    loader.load(datasets);
+    if (datasets.empty()) {
+        std::cerr << "Error: No datasets loaded!" << std::endl;
+        return 1;
+    }
+    std::cout << "Loaded " << datasets.size() << " instances." << std::endl;
+
+
+    // 4. Konfiguracja Algorytmu Ewolucyjnego
+    EvoParams evoParams;
+    evoParams.populationSize = 10; // Mniejsza populacja dla szybszych testów
+    evoParams.generations = 100;
+    evoParams.batchSize = 20;       // Ocena na 20 losowych instancjach w każdej iteracji
+    evoParams.mutationSigma = 0.2;  // Początkowa siła mutacji
+
+    // 5. Uruchomienie treningu
+    EvolutionaryAlgorithm ea(evoParams, heuristic, datasets);
+    ea.run();
+
+    // 6. Pobranie i testowanie najlepszego wyniku
+    vector<double> bestWeights = ea.getBestWeights();
+    cout << "Training finished. Best weights found." << endl;
+
+    // Ustawienie najlepszych wag w heurystyce
+    heuristic.setParams(bestWeights.data(), bestWeights.size());
+
+    // Tutaj można zapisać wagi do pliku lub przetestować na zbiorze walidacyjnym
+    nnutils::FFN tempNet(ffnConfig);
+    tempNet.setParams(bestWeights.data(), bestWeights.size());
+    tempNet.save("best_model.weights");
+    print_solutions(datasets, heuristic, "../solutions");
+
     return 0;
 }
