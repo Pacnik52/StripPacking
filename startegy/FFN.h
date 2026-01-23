@@ -16,9 +16,7 @@ namespace nnutils {
     public:
         struct Config {
             friend class boost::serialization::access;
-            
-            // Domyślne wartości zgodne z artykułem [cite: 206]
-            // Wejście: 25 (zgodnie z BinpackConstructionHeuristic.h), Ukryte: 32, 12, Wyjście: 1
+
             int inputSize = 25; 
             int hidden1Size = 32;
             int hidden2Size = 12;

@@ -3,6 +3,7 @@
 #include <vector>
 #include <filesystem>
 #include "../bin/BinpackData.h"
+#include "../startegy/BinpackConstructionHeuristic.h"
 
 namespace binpack {
     using namespace std;
@@ -15,13 +16,13 @@ namespace binpack {
         BinDrawer() {
             populateColors();
 
-            // SFML 3 FIX: loadFromFile -> openFromFile
             if (!font.openFromFile("../bin_drawer/fnt/arial.ttf"))
             {
-                // Optional: Print error if font fails
-                // puts("Error loading font!");
+                std::cerr << "Font file not found." << std::endl;
             }
         }
+
+        void print_solutions(std::vector<BinpackData>& datasets, BinpackConstructionHeuristic<nnutils::FFN>& heuristic, const std::string& outputDir, bool draw_all_solutions );
 
         void populateColors();
 

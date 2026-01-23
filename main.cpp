@@ -10,66 +10,24 @@
 using namespace binpack;
 using namespace std;
 
-const bool DRAW_SOLUTION = true;
+const bool DRAW_ALL_SOLUTIONS = true;
 const std::string DATA_FILENAME = "ODPS_data_10_1-5_1";
-const int DATASET_SIZE = 100;
+const int DATASET_SIZE = 10;
 
-void print_solutions(std::vector<BinpackData>& datasets,
-                     BinpackConstructionHeuristic<nnutils::FFN>& heuristic,
-                     const std::string& outputDir) {
 
-    if (!std::filesystem::exists(outputDir)) {
-        std::filesystem::create_directory(outputDir);
-    }
-
-    BinDrawer drawer;
-    std::cout << "\nGenerating final solutions and images..." << std::endl;
-
-    double totalFF = 0;
-
-    for (size_t i = 0; i < datasets.size(); ++i) {
-        BinpackData& problem = datasets[i];
-
-        auto solution = heuristic.run(problem);
-
-        problem.Solution = solution;
-
-        // 3. Pobierz Fill Factor (zakładamy, że getObj zwraca FF dla StripPacking w tej implementacji)
-        double ff = solution.getObj();
-        totalFF += ff;
-
-        std::cout << "Instance " << problem.fileName
-                  << ": Fill Factor = " << ff * 100.0 << "%" << std::endl;
-
-        // 4. Narysuj rozwiązanie
-        if (DRAW_SOLUTION) {
-            // Uwaga: filename, false (np. nie tylko kontury), katalog, rozszerzenie
-            drawer.drawToFile(problem, true, outputDir, ".png");
-        }
-    }
-
-    if (!datasets.empty()) {
-        std::cout << "Average Fill Factor: " << (totalFF / datasets.size()) * 100.0 << "%" << std::endl;
-        std::cout << "Solutions saved to directory: " << outputDir << "/" << std::endl;
-    }
-}
 
 int main() {
-    // 1. Konfiguracja sieci neuronowej
+    // Konfiguracja sieci neuronowej
     nnutils::FFN::Config ffnConfig;
-    ffnConfig.inputSize = 25; // Dopasowane do BinpackConstructionHeuristic.h
-    ffnConfig.hidden1Size = 32;
-    ffnConfig.hidden2Size = 12;
-    ffnConfig.outputSize = 1;
-
-    // 2. Konfiguracja heurystyki
+    // Konfiguracja Heurystyki
     BinpackConstructionHeuristic<nnutils::FFN>::ConfigType heuristicConfig;
-    heuristicConfig.stripPacking = true; // Rozwiązujemy problem Strip Packing (minimalizacja wysokości)
-    heuristicConfig.binPackInt = false;
-    heuristicConfig.AConf = ffnConfig;
-
-    // Tworzenie prototypu heurystyki (używany do klonowania w EA)
     BinpackConstructionHeuristic<nnutils::FFN> heuristic(heuristicConfig);
+    // Konfiguracja Algorytmu Ewolucyjnego
+    EvoParams evoParams;
+    evoParams.populationSize = 10;
+    evoParams.generations = 2;
+    evoParams.batchSize = 10;
+    evoParams.mutationSigma = 0.2;
 
     // Loading data from file
     std::cout << "Loading data..." << std::endl;
@@ -82,30 +40,21 @@ int main() {
     }
     std::cout << "Loaded " << datasets.size() << " instances." << std::endl;
 
-
-    // 4. Konfiguracja Algorytmu Ewolucyjnego
-    EvoParams evoParams;
-    evoParams.populationSize = 10; // Mniejsza populacja dla szybszych testów
-    evoParams.generations = 100;
-    evoParams.batchSize = 20;       // Ocena na 20 losowych instancjach w każdej iteracji
-    evoParams.mutationSigma = 0.2;  // Początkowa siła mutacji
-
-    // 5. Uruchomienie treningu
+    // Uczenie heurystyki za pomocą algorytmu ewolucyjnego
     EvolutionaryAlgorithm ea(evoParams, heuristic, datasets);
     ea.run();
 
-    // 6. Pobranie i testowanie najlepszego wyniku
+    // Pobranie i testowanie najlepszej sieci
     vector<double> bestWeights = ea.getBestWeights();
-    cout << "Training finished. Best weights found." << endl;
-
-    // Ustawienie najlepszych wag w heurystyce
     heuristic.setParams(bestWeights.data(), bestWeights.size());
+    cout << "Training finished. Best weights found." << endl;
+    BinDrawer drawer;
+    drawer.print_solutions(datasets, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
 
-    // Tutaj można zapisać wagi do pliku lub przetestować na zbiorze walidacyjnym
+    // Zapisanie najlepszego modelu do pliku
     nnutils::FFN tempNet(ffnConfig);
     tempNet.setParams(bestWeights.data(), bestWeights.size());
     tempNet.save("best_model.weights");
-    print_solutions(datasets, heuristic, "../solutions");
 
     return 0;
 }
