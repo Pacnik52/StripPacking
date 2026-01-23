@@ -44,7 +44,7 @@ void print_solutions(std::vector<BinpackData>& datasets,
         // 4. Narysuj rozwiązanie
         if (DRAW_SOLUTION) {
             // Uwaga: filename, false (np. nie tylko kontury), katalog, rozszerzenie
-            drawer.drawToFile(problem, false, outputDir, ".png");
+            drawer.drawToFile(problem, true, outputDir, ".png");
         }
     }
 

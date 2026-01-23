@@ -5,6 +5,8 @@
 #include <set>
 #include <string>
 #include <algorithm>
+#include <climits>
+#include <iostream>
 
 namespace binpack {
     void BinDrawer::populateColors() {
@@ -17,128 +19,140 @@ namespace binpack {
                 }
             }
         }
-
         std::shuffle(Colors.begin(), Colors.end(), std::mt19937(1));
     }
 
-    void BinDrawer::drawToFile(const BinpackData &IOD, bool flip, string dir, string ext) {
+void BinDrawer::drawToFile(const BinpackData &IOD, bool flip, string dir, string ext) {
+    set<int> Bins;
+    for (auto &BP : IOD.Solution.BPV) Bins.insert(BP.second.binIdx);
 
-        set<int> Bins;
-        for ( auto &BP: IOD.Solution.BPV) {
-            Bins.insert(BP.second.binIdx);
+    for (auto binIdx : Bins) {
+        // 1. Obliczanie faktycznych wymiarów zajętej przestrzeni
+        long long maxHeuristicX = 0;
+        long long maxHeuristicY = 0;
+
+        for(auto &BP : IOD.Solution.BPV) {
+            if (BP.second.binIdx != binIdx) continue;
+            auto &B = IOD.BoxTypes[BP.first];
+            auto Pos = BP.second;
+            int itemLen = B.SizeX;
+            int itemWid = B.SizeY;
+            if (Pos.Rotated) swap(itemLen, itemWid);
+            if (Pos.X + itemLen > maxHeuristicX) maxHeuristicX = Pos.X + itemLen;
+            if (Pos.Y + itemWid > maxHeuristicY) maxHeuristicY = Pos.Y + itemWid;
         }
 
-        for ( auto binIdx: Bins ) {
-            const float IMG_SIZE = 512.0f; // Use float literal
+        // logicWidth to szerokość paska (stała dla zadania)
+        // logicLength to wysokość ułożenia (zmienna dla zadania)
+        float logicLength = (float)maxHeuristicX;
+        float logicWidth  = (float)maxHeuristicY;
+        if (logicLength <= 0) logicLength = 100.0f;
+        if (logicWidth <= 0) logicWidth = 100.0f;
 
-            float minDim = std::min(IOD.PSizeX, IOD.PSizeY);
-            if(minDim == 0) minDim = 1.0f;
+        // --- KLUCZOWA ZMIANA: STAŁA SZEROKOŚĆ W PIXELACH ---
+        // Definiujemy, ile pikseli szerokości ma mieć sam "pasek" (bez marginesów)
+        const float FIXED_STRIP_PX_WIDTH = 800.0f;
 
-            float SCALE = IMG_SIZE / minDim;
-            float WIDTH = IOD.PSizeX * SCALE;
-            float HEIGHT = IOD.PSizeY * SCALE;
+        // Skala zależy WYŁĄCZNIE od szerokości paska (logicWidth)
+        float SCALE = FIXED_STRIP_PX_WIDTH / logicWidth;
+
+        // Ograniczenie wysokości ze względu na limity techniczne tekstur (np. 16k px)
+        if (SCALE * logicLength > 16000.0f) {
+            SCALE = 16000.0f / logicLength;
+        }
+
+        float MARGIN = 3.0f;
+        sf::Color marginColor(0,0,0);
+
+        float CAN_W, CAN_H;
+        if (flip) {
+            // W wizualizacji pionowej (flip=true):
+            // Szerokość obrazka (CAN_W) odpowiada szerokości paska (logicWidth)
+            CAN_W = logicWidth * SCALE;  // To zawsze będzie ok. 800px
+            CAN_H = logicLength * SCALE; // To będzie zmienne (wysokość wieży)
+        } else {
+            // W wizualizacji poziomej:
+            // Szerokość obrazka (CAN_W) odpowiada długości paska
+            CAN_W = logicLength * SCALE;
+            CAN_H = logicWidth * SCALE;
+        }
+
+        unsigned int imgW = static_cast<unsigned int>(CAN_W + MARGIN * 2);
+        unsigned int imgH = static_cast<unsigned int>(CAN_H + MARGIN);
+
+        sf::RenderTexture window;
+        if (!window.resize({imgW, imgH})) continue;
+
+        window.clear(marginColor);
+
+        // Białe wnętrze paska
+        sf::RectangleShape binBackground({CAN_W, CAN_H});
+        binBackground.setFillColor(sf::Color::White);
+        binBackground.setPosition({MARGIN, 0.0f});
+        window.draw(binBackground);
+
+        // Tekst informacyjny
+        sf::Text infoText(font);
+        infoText.setString("FF: " + to_string_with_precision(IOD.getObj()*100, 2) + "%  H: " + std::to_string(maxHeuristicX));
+        infoText.setCharacterSize(24);
+        infoText.setFillColor(sf::Color::Black);
+        infoText.setStyle(sf::Text::Bold);
+
+        sf::FloatRect tb = infoText.getLocalBounds();
+        infoText.setPosition({ (float)imgW - MARGIN - tb.size.x - 5.0f, 5.0f });
+
+        // Rysowanie pudełek
+        sf::Text txtNum(font);
+        txtNum.setFillColor(sf::Color::Black);
+
+        for( auto &BP: IOD.Solution.BPV ) {
+            if (BP.second.binIdx != binIdx) continue;
+            auto &B = IOD.BoxTypes[BP.first];
+            auto Pos = BP.second;
+
+            float hLen = B.SizeX * SCALE;
+            float hWid = B.SizeY * SCALE;
+            if (Pos.Rotated) swap(hLen, hWid);
+
+            float hX = Pos.X * SCALE;
+            float hY = Pos.Y * SCALE;
+
+            float drawX, drawY, drawW, drawH;
             if (flip) {
-                swap(WIDTH, HEIGHT);
+                drawX = MARGIN + hY;
+                drawY = CAN_H - hX - hLen;
+                drawW = hWid;
+                drawH = hLen;
+            } else {
+                drawX = MARGIN + hX;
+                drawY = CAN_H - hY - hWid;
+                drawW = hLen;
+                drawH = hWid;
             }
 
-            sf::RenderTexture window;
-            window.resize(sf::Vector2u(static_cast<unsigned int>(WIDTH + 4), static_cast<unsigned int>(HEIGHT + 4)));
+            sf::RectangleShape Rect({drawW, drawH});
+            Rect.setFillColor(B.idx < Colors.size() ? Colors[B.idx % Colors.size()] : sf::Color(128,128,128));
+            Rect.setOutlineColor(sf::Color::Black);
+            Rect.setOutlineThickness(1.0f);
+            Rect.setPosition({drawX, drawY});
+            window.draw(Rect);
 
-            sf::View view = window.getDefaultView();
-            view.setSize(sf::Vector2f(WIDTH + 4, -(HEIGHT + 4)));
-            window.setView(view);
+            // Numerki (tekst centrowany w pudełku)
+            txtNum.setString(std::to_string(B.idx));
+            float minSide = std::min(drawW, drawH);
+            txtNum.setCharacterSize(static_cast<unsigned int>(std::max(10.0f, minSide * 0.5f)));
+            sf::FloatRect b = txtNum.getLocalBounds();
+            txtNum.setOrigin({b.position.x + b.size.x / 2.0f, b.position.y + b.size.y / 2.0f});
+            txtNum.setPosition(Rect.getPosition() + Rect.getSize() / 2.0f);
 
-            window.clear(sf::Color::Black);
-
-            sf::RectangleShape Background(sf::Vector2f(WIDTH, HEIGHT));
-            Background.setFillColor(sf::Color::White);
-            Background.setPosition(sf::Vector2f(2.f, 2.f));
-
-            sf::Text text(font);
-
-            text.setString(to_string_with_precision(IOD.getObj()*100, 2));
-            text.setCharacterSize( static_cast<unsigned int>(SCALE*70) );
-            text.setFillColor(sf::Color::Black);
-
-            text.setPosition(sf::Vector2f(WIDTH - IMG_SIZE/3, IMG_SIZE/100));
-
-            vector<sf::RectangleShape> Rects;
-            vector<int> BoxTypes;
-
-            sf::Text txtNum(font);
-            txtNum.setCharacterSize( static_cast<unsigned int>(SCALE*50) );
-            txtNum.setFillColor(sf::Color::Black);
-
-
-            for( auto &BP: IOD.Solution.BPV ) {
-                auto &B = IOD.BoxTypes[BP.first];
-                auto Pos = BP.second;
-                if (Pos.binIdx != binIdx) {
-                    continue;
-                }
-
-                float sx = B.SizeX * SCALE;
-                float sy = B.SizeY * SCALE;
-                if (Pos.Rotated) swap(sx, sy);
-
-                float PosX = Pos.X * SCALE + 2;
-                float PosY = (HEIGHT + 2) - (Pos.Y * SCALE) - sy;
-
-                if (flip) {
-                    swap(sx, sy);
-                    sy = -sy;
-                    swap(PosX, PosY);
-                    PosY = HEIGHT - PosY;
-                }
-
-                sf::RectangleShape Rect(sf::Vector2f(sx, sy));
-
-                if (B.idx < Colors.size()) {
-                    Rect.setFillColor(Colors[B.idx]);
-                    Rect.setOutlineColor(sf::Color::Black);
-                    Rect.setOutlineThickness(-IMG_SIZE/200);
-                }
-                Rect.setPosition(sf::Vector2f(PosX, PosY));
-
-                Rects.push_back(Rect);
-                BoxTypes.push_back(B.idx);
-            }
-
-            window.draw(Background);
-
-            for( size_t i = 0; i < Rects.size(); i++ ) {
-                auto &R = Rects[i];
-                int bt = BoxTypes[i];
-                window.draw(R);
-
-                txtNum.setString(std::to_string(bt));
-
-                auto P = R.getPosition();
-                auto S = R.getSize();
-
-                sf::Vector2f NP = P + S / 2.0f;
-                txtNum.setPosition(NP);
-
-                 sf::FloatRect bounds = txtNum.getLocalBounds();
-                 txtNum.setOrigin(sf::Vector2f(bounds.position.x + bounds.size.x / 2, bounds.position.y + bounds.size.y / 2));
-                 txtNum.setPosition(NP);
-
-                window.draw(txtNum);
-            }
-
-            if (Bins.size() == 1) {
-                window.draw(text);
-            }
-
-            const sf::Texture& outputTexture = window.getTexture();
-
-            sf::Image output = outputTexture.copyToImage();
-
-            string fn = dir + "/" + IOD.fileName + "_bin" + to_string(binIdx, 2) + ext;
-
-            if (!output.saveToFile(fn)) {
-                fprintf(stderr, "Failed to save image to %s\n", fn.c_str());
-            }
+            if (b.size.x < drawW && b.size.y < drawH) window.draw(txtNum);
         }
+
+        window.draw(infoText);
+        window.display();
+
+        string fn = dir + "/" + IOD.fileName + "_bin" + to_string(binIdx, 2) + ext;
+        window.getTexture().copyToImage().saveToFile(fn);
     }
+}
 }
