@@ -33,8 +33,13 @@ int main() {
     // Loading data from file
     std::cout << "Loading data..." << std::endl;
     std::vector<BinpackData> datasets;
-    DataLoaderOdp loader(DATA_FILENAME, true, 0, DATASET_SIZE);
-    loader.load(datasets);
+    std::vector<std::string> filenames = {
+        "ODPS_data_10_1-5_1",
+        "ODPS_data_10_1-5_2",
+        "ODPS_data_10_1-5_6",
+        "ODPS_data_10_1-5_16"
+    };
+    DataLoaderOdp::loadFromMultipleFiles(filenames, DATASET_SIZE, datasets, true);
     if (datasets.empty()) {
         std::cerr << "Error: No datasets loaded!" << std::endl;
         return 1;
