@@ -13,10 +13,11 @@ using namespace std;
 const bool DRAW_ALL_SOLUTIONS = true;
 const std::string DATA_FILENAME = "ODPS_data_10_1-5_1";
 const int DATASET_SIZE = 10;
-const bool TRAINING_MODE = false;
+const bool TRAINING_MODE = true;
 const std::string MODEL_SAVE_PATH = "../best_models/ok_model.weights";
 
 int main() {
+    omp_set_num_threads(16);
     // Konfiguracja sieci neuronowej
     nnutils::FFN::Config ffnConfig;
     // Konfiguracja Heurystyki
@@ -24,8 +25,8 @@ int main() {
     BinpackConstructionHeuristic<nnutils::FFN> heuristic(heuristicConfig);
     // Konfiguracja Algorytmu Ewolucyjnego
     EvoParams evoParams;
-    evoParams.populationSize = 10;
-    evoParams.generations = 2;
+    evoParams.populationSize = 50;
+    evoParams.generations = 100;
     evoParams.batchSize = 10;
     evoParams.mutationSigma = 0.2;
 

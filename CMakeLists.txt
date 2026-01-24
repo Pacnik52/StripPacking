@@ -5,6 +5,12 @@ project(StripPacking)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    add_compile_options(/O2 /Oi /Ot /Oy /GL)
+else()
+    add_compile_options(-O3 -march=native)
+endif()
+
 include(FetchContent)
 
 # SFML
@@ -23,17 +29,17 @@ FetchContent_Declare(
         URL      https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
 )
 
+# Boost
 FetchContent_Declare(
         Boost
         URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.xz
 )
-
-# Boost is huge; we only want to build what we need
 set(BOOST_INCLUDE_LIBRARIES serialization)
 set(BOOST_ENABLE_CMAKE ON)
 
 FetchContent_MakeAvailable(SFML Eigen Boost)
 
+find_package(OpenMP REQUIRED)
 
 add_executable(strippacker
         main.cpp
@@ -60,4 +66,9 @@ target_link_libraries(strippacker
         SFML::System
         Eigen3::Eigen
         Boost::serialization
+        OpenMP::OpenMP_CXX
 )
+
+if(MINGW)
+    target_link_options(strippacker PRIVATE -fopenmp)
+endif()
