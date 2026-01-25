@@ -1,6 +1,6 @@
 #pragma once
-#include "../P2D.h"
-#include "../BinpackData.h"
+#include "P2D.h"
+#include "BinpackData.h"
 #include <vector>
 
 namespace binpack
