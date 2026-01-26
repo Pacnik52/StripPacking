@@ -53,6 +53,106 @@ namespace binpack {
         std::shuffle(Colors.begin(), Colors.end(), std::mt19937(1));
     }
 
+void BinDrawer::print_specialist_results(
+        std::vector<BinpackData>& datasets,
+        const std::vector<std::vector<double>>& populationGenomes,
+        BinpackConstructionHeuristic<nnutils::FFN>& heuristic,
+        const std::string& outputDir, bool draw_all_best_solutions
+    ) {
+        // Przygotowanie pliku csv
+        if (!std::filesystem::exists(outputDir)) {
+            std::filesystem::create_directory(outputDir);
+        }
+        std::string csvPath = outputDir + "/evaluation_results.csv";
+        std::ofstream csvFile(csvPath);
+        if (!csvFile.is_open()) {
+            std::cerr << "Error: Could not create CSV file at " << csvPath << std::endl;
+            return;
+        }
+
+        std::cout << "Saving results to: " << csvPath << std::endl;
+
+        // Nazwy w pierwszym wierszu pliku CSV
+        csvFile << "Instance Name";
+        for (size_t i = 0; i < populationGenomes.size(); ++i) {
+            csvFile << ";Net_" << i;
+        }
+        csvFile << ";BEST_NET_ID;BEST_FF;WORST_NET_ID;WORST_FF;MEAN_FF;STDDEV_FF\n";
+
+        // Wypisywanie dla kazdego zadania
+        int taskCounter = 0;
+        for (auto& problem : datasets) {
+            taskCounter++;
+            double bestFF = -DBL_MAX;
+            int bestNetIdx = -1;
+            double worstFF = DBL_MAX;
+            int worstNetIdx = -1;
+            double sumFF = 0.0;
+
+            // ID zadania do csv
+            csvFile << problem.fileName;
+
+            // Ewaluacja wszystkich sieci dla biezacego zadania
+            std::vector<double> currentScores(populationGenomes.size());
+            #pragma omp parallel for schedule(dynamic)
+            for (int i = 0; i < populationGenomes.size(); ++i) {
+                auto localHeuristic = heuristic;
+                localHeuristic.setParams(populationGenomes[i].data(), populationGenomes[i].size());
+
+                auto sol = localHeuristic.run(problem);
+                currentScores[i] = sol.getObj();
+            }
+
+            // Zapis wynikow dla kazdego zadania do pliku CSV
+            for (int i = 0; i < populationGenomes.size(); ++i) {
+                double ff = currentScores[i];
+                csvFile << ";" << ff;
+
+                if (ff > bestFF) {
+                    bestFF = ff;
+                    bestNetIdx = i;
+                }
+                if (ff < worstFF) {
+                    worstFF = ff;
+                    worstNetIdx = i;
+                }
+                sumFF += ff;
+            }
+
+            // Obliczanie średniej i odchylenia standardowego
+            double meanFF = sumFF / currentScores.size();
+            double stddevFF = 0.0;
+            for (double ff : currentScores) {
+                stddevFF += (ff - meanFF) * (ff - meanFF);
+            }
+            stddevFF = sqrt(stddevFF / currentScores.size());
+
+            // Zapis podsumowania wiersza w CSV
+            csvFile << ";" << bestNetIdx << ";" << bestFF << ";" << worstNetIdx << ";" << worstFF << ";" << meanFF << ";" << stddevFF << "\n";
+
+            // Print wyników
+            std::cout << "[" << taskCounter << "/" << datasets.size() << "] "
+                      << std::left << std::setw(25) << problem.fileName
+                      << " -> Best: Net_" << bestNetIdx
+                      << " (FF: " << std::fixed << std::setprecision(2) << bestFF * 100.0 << "%)"
+                      << ", Worst: Net_" << worstNetIdx
+                      << " (FF: " << std::fixed << std::setprecision(2) << worstFF * 100.0 << "%)"
+                      << ", Mean: " << meanFF * 100.0 << "%"
+                      << ", Stddev: " << stddevFF * 100.0 << "%"
+                      << std::endl;
+
+            // Rysowanie najlepszego rozwiązania zadania
+            if (draw_all_best_solutions && bestNetIdx >= 0) {
+                heuristic.setParams(populationGenomes[bestNetIdx].data(), populationGenomes[bestNetIdx].size());
+                problem.Solution = heuristic.run(problem);
+                drawToFile(problem, true, outputDir, ".png");
+            }
+        }
+
+        csvFile.close();
+        std::cout << "\nEvaluation completed. \nCSV Table: " << csvPath << "\nImages: " << outputDir << "/" << std::endl;
+    }
+
     void BinDrawer::drawToFile(const BinpackData &IOD, bool flip, const string dir,const string ext) {
         set<int> Bins;
         for (auto &BP : IOD.Solution.BPV) Bins.insert(BP.second.binIdx);

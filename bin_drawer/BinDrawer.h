@@ -26,6 +26,13 @@ namespace binpack {
 
         void populateColors();
 
+        void print_specialist_results(
+            std::vector<BinpackData>& datasets,
+            const std::vector<std::vector<double>>& populationGenomes,
+            BinpackConstructionHeuristic<nnutils::FFN>& heuristic,
+            const std::string& outputDir, bool draw_all_best_solutions
+        );
+
         void drawToFile(const BinpackData &IOD, bool flip, string dir, string ext);
     };
 }
