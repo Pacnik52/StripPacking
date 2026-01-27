@@ -244,5 +244,28 @@ namespace nnutils {
             // ale dla kompletności obiektu można by je dodać. 
             // W tym kontekście wystarczy konfiguracja, bo wagi są ładowane przez setParams.
         }
+
+        // Zapisuje całą populację sieci do plików w podanym folderze
+        static void save_population(const std::string& outputDir, const std::vector<std::vector<double>>& populationGenomes, const Config& conf) {
+            namespace fs = std::filesystem;
+            // Usuwanie wszystkich plików z outputDir
+            if (std::filesystem::exists(outputDir)) {
+                for (const auto& entry : std::filesystem::directory_iterator(outputDir)) {
+                    if (entry.is_regular_file()) {
+                        std::string ext = entry.path().extension().string();
+                        std::filesystem::remove(entry.path());
+
+                    }
+                }
+            } else {
+                std::filesystem::create_directory(outputDir);
+            }
+            for (size_t i = 0; i < populationGenomes.size(); ++i) {
+                FFN net(conf);
+                net.setParams(populationGenomes[i].data(), populationGenomes[i].size());
+                std::string filename = "specialist_" + std::to_string(i);
+                net.save(outputDir, filename);
+            }
+        }
     };
 }

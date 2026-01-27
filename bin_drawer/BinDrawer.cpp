@@ -59,8 +59,17 @@ void BinDrawer::print_specialist_results(
         BinpackConstructionHeuristic<nnutils::FFN>& heuristic,
         const std::string& outputDir, bool draw_all_best_solutions
     ) {
-        // Przygotowanie pliku csv
-        if (!std::filesystem::exists(outputDir)) {
+        // Usuwanie wszystkich plików csv i png z outputDir
+        if (std::filesystem::exists(outputDir)) {
+            for (const auto& entry : std::filesystem::directory_iterator(outputDir)) {
+                if (entry.is_regular_file()) {
+                    std::string ext = entry.path().extension().string();
+                    if (ext == ".csv" || ext == ".png") {
+                        std::filesystem::remove(entry.path());
+                    }
+                }
+            }
+        } else {
             std::filesystem::create_directory(outputDir);
         }
         std::string csvPath = outputDir + "/evaluation_results.csv";

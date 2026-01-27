@@ -17,6 +17,7 @@ namespace binpack {
         int batchSize = 100;
         double mutationRate = 0.1;
         double mutationSigma = 0.1;
+        bool mutationAnnealing = true;
         double crossoverRate = 0.8;
         bool elitism = true;
         bool crossover = false;
@@ -173,7 +174,7 @@ namespace binpack {
                 population = std::move(newPop);
 
                 // Zmiejszanie mutacji w kolejnych generacjach
-                if (gen % 20 == 0 && params.mutationSigma > 0.05) {
+                if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
                     params.mutationSigma *= 0.98;
                 }
             }

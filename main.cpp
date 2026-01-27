@@ -14,7 +14,7 @@ using namespace binpack;
 using namespace std;
 
 const bool DRAW_ALL_SOLUTIONS = true;
-const int DATASET_SIZE = 1000;
+const int DATASET_SIZE = 10;
 const bool TRAINING_MODE = true;
 
 int main() {
@@ -26,10 +26,11 @@ int main() {
     BinpackConstructionHeuristic<nnutils::FFN> heuristic(heuristicConfig);
     // Konfiguracja Algorytmu Ewolucyjnego
     EvoParams evoParams;
-    evoParams.populationSize = 500;
-    evoParams.generations = 5000;
-    evoParams.batchSize = 100;
+    evoParams.populationSize = 100;
+    evoParams.generations = 100;
+    evoParams.batchSize = 5;
     evoParams.mutationSigma = 0.2;
+    evoParams.mutationAnnealing = true;
     evoParams.elitism = true;
     evoParams.crossover = true;
 
@@ -55,34 +56,16 @@ int main() {
     if (TRAINING_MODE) {
         ea.run();
 
-        // Zapisanie wag najlepszych sieci do plików
-        namespace fs = std::filesystem;
-        const std::string MODELS_DIR = "../best_models_specialists/";
-        fs::create_directories(MODELS_DIR);
-
-        auto population = ea.getPopulation();
-        std::set<std::vector<double>> uniqueGenomes;
-        int savedCount = 0;
-        for (const auto& ind : population) {
-            if (uniqueGenomes.find(ind.genes) == uniqueGenomes.end()) {
-                uniqueGenomes.insert(ind.genes);
-
-                nnutils::FFN tempNet(ffnConfig);
-                tempNet.setParams(ind.genes.data(), ind.genes.size());
-
-                std::string name = "specialist_" + std::to_string(savedCount);
-                tempNet.save(MODELS_DIR, name);
-                savedCount++;
-            }
-        }
-        std::cout << "Saved " << savedCount << " unique network weights." << std::endl;
-
-        // Rysowanie wynikow i tworzenie tabeli
+        // Wczytywanie ostatniej populacji sieci
         auto population_final = ea.getPopulation();
         vector<vector<double>> allWeights;
         for(const auto& ind : population_final) {
             allWeights.push_back(ind.genes);
         }
+        // Zapisanie wag najlepszych sieci do plików
+        nnutils::FFN::save_population("../best_models_specialists/", allWeights, ffnConfig);
+        std::cout << "Final population of network weights saved." << std::endl;
+        // Rysowanie wynikow i tworzenie tabeli
         BinDrawer drawer;
         drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists", DRAW_ALL_SOLUTIONS);
     }
