@@ -20,6 +20,8 @@ namespace binpack {
         bool mutationAnnealing = true;
         double crossoverRate = 0.8;
         bool elitism = true;
+        int eliteSize = populationSize/10;
+        int tournamentSize = 5;
         bool crossover = false;
     };
 
@@ -142,7 +144,8 @@ namespace binpack {
                 std::uniform_int_distribution<int> parentDist(0, parentIndices.size() - 1);
 
                 // Jeśli crossover to krzyzowanie i mutacja, jesli nie to tylko mutacja
-                if (params.elitism) {
+                // Rodzice wybierani selekcja losowa
+                if (params.crossover) {
                     while (newPop.size() < params.populationSize) {
                         int p1_idx = parentIndices[parentDist(rng)];
                         int p2_idx = parentIndices[parentDist(rng)];
@@ -180,6 +183,70 @@ namespace binpack {
             }
         }
 
+        void run_normal() {
+            int genomeSize = heuristicPrototype.getParamsSize();
+            std::cout << "Starting Normal Evolution. Genome size (weights): " << genomeSize << std::endl;
+
+            for (int gen = 0; gen < params.generations; ++gen) {
+
+                // Wybór losowego batcha zadań
+                std::vector<BinpackData> batch;
+                std::sample(allTrainingData.begin(), allTrainingData.end(),
+                            std::back_inserter(batch), params.batchSize, rng);
+
+                /// Ewaluacja calej populacji sieci dla wszystkich zadań (avg)
+                evaluatePopulationNormal(batch);
+                // Sortowanie populacji malejąco po fitness
+                std::sort(population.begin(), population.end(),
+                    [](const Individual& a, const Individual& b) {
+                        return a.avgFitness > b.avgFitness;
+                    });
+
+                double bestFit = population[0].avgFitness;
+                std::cout << "Gen " << gen << " | Best Fitness (Avg Fill Factor): " << bestFit << std::endl;
+
+                // Tworzenie nowej populacji
+                std::vector<Individual> newPop;
+                newPop.reserve(params.populationSize);
+
+                // Elityzm
+                if (params.elitism)
+                    for (int i = 0; i < params.eliteSize; ++i) {
+                        newPop.push_back(population[i]);
+                    }
+
+                // Jeśli crossover to krzyzowanie i mutacja, jesli nie to tylko mutacja
+                // Rodzice wybierani selekcja turniejowa
+                if (params.crossover) {
+                    while (newPop.size() < params.populationSize) {
+                        const auto& p1 = tournamentSelect();
+                        const auto& p2 = tournamentSelect();
+
+                        Genome childGenes = crossover(p1.genes, p2.genes);
+                        mutate(childGenes);
+
+                        newPop.push_back({childGenes, -DBL_MAX});
+                    }
+                }else {
+                    while (newPop.size() < params.populationSize) {
+                        const auto& p1 = tournamentSelect();
+
+                        Genome childGenes = p1.genes;
+                        mutate(childGenes);
+
+                        newPop.push_back({childGenes, -DBL_MAX});
+                    }
+                }
+
+                population = std::move(newPop);
+
+                // Zmiejszanie mutacji w kolejnych generacjach
+                if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
+                    params.mutationSigma *= 0.98;
+                }
+            }
+        }
+
         Genome crossover(const Genome& p1, const Genome& p2) {
             std::uniform_real_distribution<double> dist(0.0, 1.0);
             Genome child = p1;
@@ -201,8 +268,44 @@ namespace binpack {
             }
         }
 
+        const Individual& tournamentSelect() {
+            std::uniform_int_distribution<int> dist(0, params.populationSize - 1);
+            int bestIdx = dist(rng);
+
+            for (int i = 1; i < params.tournamentSize; ++i) {
+                int contestIdx = dist(rng);
+                if (population[contestIdx].avgFitness > population[bestIdx].avgFitness) {
+                    bestIdx = contestIdx;
+                }
+            }
+            return population[bestIdx];
+        }
+
+        void evaluatePopulationNormal(const std::vector<BinpackData>& batch) {
+            #pragma omp parallel for schedule(dynamic)
+            for (int i = 0; i < population.size(); ++i) {
+                // Kopia heurystyki dla każdego wątku
+                HeuristicType localHeuristic = heuristicPrototype;
+
+                // Ustawienie wag z genotypu
+                localHeuristic.setParams(population[i].genes.data(), population[i].genes.size());
+
+                double totalFillFactor = 0.0;
+                for (const auto& instance : batch) {
+                    auto solution = localHeuristic.run(instance);
+                    totalFillFactor += solution.getObj();
+                }
+                // średni fill factor dla każdej z sieci
+                population[i].avgFitness = totalFillFactor / batch.size();
+            }
+        }
+
         std::vector<Individual> getPopulation() const {
             return population;
+        }
+
+        std::vector<double> getBestWeights() {
+            return population[0].genes;
         }
 
         // Zwraca populacje bez duplikatow
