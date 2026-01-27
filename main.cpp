@@ -50,10 +50,9 @@ int main() {
     }
     std::cout << "Loaded " << datasets.size() << " instances." << std::endl;
 
-    // Uczenie heurystyki za pomocą algorytmu ewolucyjnego
     EvolutionaryAlgorithm ea(evoParams, heuristic, datasets);
-
     if (TRAINING_MODE) {
+        // Uczenie heurystyki za pomocą algorytmu ewolucyjnego
         ea.run();
 
         // Wczytywanie ostatniej populacji sieci
@@ -70,20 +69,16 @@ int main() {
         drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists", DRAW_ALL_SOLUTIONS);
     }
     else {
-        // TO DO
-        // Wczytanie wag z pliku
-        // nnutils::FFN tempNet(ffnConfig);
-        // if (!tempNet.load(MODEL_SAVE_PATH)) {
-        //     std::cerr << "Error: Could not load model from " << MODEL_SAVE_PATH << std::endl;
-        //     return 1;
-        // }
-        // // Pobranie wag do heurystyki
-        // bestWeights.resize(tempNet.getParamsSize());
-        // tempNet.getParams(bestWeights.data(), bestWeights.size());
-        // heuristic.setParams(bestWeights.data(), bestWeights.size());
-        // // Zapisanie rozwiązań do plików
-        // BinDrawer drawer;
-        // drawer.print_solutions(datasets, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
+        // Wczytanie wag sieci z plikow
+        vector<vector<double>> allWeights = nnutils::FFN::load_population("../best_models_specialists/");
+        if (allWeights.empty()) {
+            std::cerr << "Error: Failed to load models or directory is empty." << std::endl;
+            return 1;
+        }
+
+        // Rysowanie wynikow i tworzenie tabeli
+        BinDrawer drawer;
+        drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists", DRAW_ALL_SOLUTIONS);
     }
     return 0;
 }

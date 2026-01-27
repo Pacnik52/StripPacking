@@ -267,5 +267,62 @@ namespace nnutils {
                 net.save(outputDir, filename);
             }
         }
+
+        static std::vector<std::vector<double>> load_population(const std::string& inputDir) {
+            namespace fs = std::filesystem;
+            std::vector<std::vector<double>> population;
+
+            if (!fs::exists(inputDir)) {
+                std::cerr << "Error: Directory not found: " << inputDir << std::endl;
+                return population;
+            }
+
+            std::vector<std::pair<int, std::vector<double>>> indexedWeights;
+            FFN tempNet;
+
+            for (const auto& entry : fs::directory_iterator(inputDir)) {
+                if (entry.is_regular_file()) {
+                    std::string filename = entry.path().filename().string();
+                    std::string filepath = entry.path().string();
+
+                    // Iterowanie po wszytskich plikach specialist_
+                    if (filename.find("specialist_") == 0) {
+                        if (tempNet.load(filepath)) {
+                            int pSize = tempNet.getParamsSize();
+                            std::vector<double> weights(pSize);
+                            tempNet.getParams(weights.data(), pSize);
+
+                            int id = -1;
+                            try {
+                                size_t underscorePos = filename.find_last_of('_');
+                                size_t dotPos = filename.find_last_of('.');
+                                std::string numStr;
+                                if (dotPos != std::string::npos && dotPos > underscorePos)
+                                    numStr = filename.substr(underscorePos + 1, dotPos - underscorePos - 1);
+                                else
+                                    numStr = filename.substr(underscorePos + 1);
+
+                                id = std::stoi(numStr);
+                            } catch (...) {
+                                id = 999999;
+                            }
+
+                            indexedWeights.push_back({id, weights});
+                        }
+                    }
+                }
+            }
+
+            // Finalna populacja sieci
+            std::sort(indexedWeights.begin(), indexedWeights.end(),
+                [](const auto& a, const auto& b){ return a.first < b.first; });
+            population.reserve(indexedWeights.size());
+            for(const auto& item : indexedWeights) {
+                population.push_back(item.second);
+            }
+
+            std::cout << "Loaded " << population.size() << " specialist networks from " << inputDir << std::endl;
+            return population;
+        }
     };
 }
