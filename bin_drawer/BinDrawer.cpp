@@ -11,34 +11,88 @@
 #include "../startegy/BinpackConstructionHeuristic.h"
 
 namespace binpack {
-    void BinDrawer::print_solutions(std::vector<BinpackData>& datasets, BinpackConstructionHeuristic<nnutils::FFN>& heuristic, const std::string& outputDir, bool draw_all_solutions) {
-        if (!std::filesystem::exists(outputDir)) {
-            std::filesystem::create_directory(outputDir);
-        }
-
-        std::cout << "\nGenerating final solutions and images..." << std::endl;
-
-        double totalFF = 0;
-        for (size_t i = 0; i < datasets.size(); ++i) {
-            // Pobranie instancji i rozwiązanie problemu wybraną heurystyką
-            BinpackData& problem = datasets[i];
-            auto solution = heuristic.run(problem);
-            problem.Solution = solution;
-            // Obliczenie i wypisywanie Fill Factor
-            double ff = solution.getObj();
-            totalFF += ff;
-            std::cout << "Instance " << problem.fileName
-                      << ": Fill Factor = " << ff * 100.0 << "%" << std::endl;
-            // Rysowanie rozwiązania do pliku
-            if (draw_all_solutions) {
-                drawToFile(problem, true, outputDir, ".png");
+void BinDrawer::print_solutions(std::vector<BinpackData>& datasets, BinpackConstructionHeuristic<nnutils::FFN>& heuristic, const std::string& outputDir, bool draw_all_solutions) {
+    // Usuwanie wszystkich plików csv i png z outputDir
+    if (std::filesystem::exists(outputDir)) {
+        for (const auto& entry : std::filesystem::directory_iterator(outputDir)) {
+            if (entry.is_regular_file()) {
+                std::string ext = entry.path().extension().string();
+                if (ext == ".csv" || ext == ".png") {
+                    std::filesystem::remove(entry.path());
+                }
             }
         }
-        if (!datasets.empty()) {
-            std::cout << "Average Fill Factor: " << (totalFF / datasets.size()) * 100.0 << "%" << std::endl;
-            std::cout << "Solutions saved to directory: " << outputDir << "/" << std::endl;
+    } else {
+        std::filesystem::create_directory(outputDir);
+    }
+    std::string csvPath = outputDir + "/evaluation_results.csv";
+    std::ofstream csvFile(csvPath);
+    if (!csvFile.is_open()) {
+        std::cerr << "Error: Could not create CSV file at " << csvPath << std::endl;
+        return;
+    }
+
+    std::cout << "Saving results to: " << csvPath << std::endl;
+
+    // Nazwy w pierwszym wierszu pliku CSV
+    csvFile << "Instance Name;Fill Factor\n";
+
+    // Wektor do przechowywania wyników w celu obliczenia statystyk
+    std::vector<double> results;
+    results.reserve(datasets.size());
+
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        // Pobranie instancji i rozwiązanie problemu
+        BinpackData& problem = datasets[i];
+        auto solution = heuristic.run(problem);
+        problem.Solution = solution;
+
+        // Obliczenie Fill Factor
+        double ff = solution.getObj();
+        results.push_back(ff);
+
+        // Wypisywanie Fill Factor do konsoli i pliku CSV
+        std::cout << "Instance " << problem.fileName
+                  << ": Fill Factor = " << ff * 100.0 << "%" << std::endl;
+        csvFile << problem.fileName << ";" << ff << "\n";
+
+        // Rysowanie rozwiązania do pliku
+        if (draw_all_solutions) {
+            drawToFile(problem, true, outputDir, ".png");
         }
     }
+
+    // Obliczanie statystyk, jeśli są jakiekolwiek wyniki
+    if (!results.empty()) {
+        double minFF = *std::min_element(results.begin(), results.end());
+        double maxFF = *std::max_element(results.begin(), results.end());
+
+        double sumFF = std::accumulate(results.begin(), results.end(), 0.0);
+        double meanFF = sumFF / results.size();
+
+        double sq_sum = 0.0;
+        for (double val : results) {
+            sq_sum += (val - meanFF) * (val - meanFF);
+        }
+        double stdDevFF = std::sqrt(sq_sum / results.size());
+
+        // Wypisanie statystyk do konsoli
+        std::cout << "\n--- Statistics ---\n";
+        std::cout << "Average Fill Factor: " << meanFF * 100.0 << "%" << std::endl;
+        std::cout << "Std Dev: " << stdDevFF * 100.0 << "%" << std::endl;
+        std::cout << "Min: " << minFF * 100.0 << "% | Max: " << maxFF * 100.0 << "%" << std::endl;
+        std::cout << "Solutions saved to directory: " << outputDir << "/" << std::endl;
+
+        // Zapisanie statystyk na końcu pliku CSV
+        csvFile << "\n;STATISTICS\n";
+        csvFile << "MIN;" << minFF << "\n";
+        csvFile << "MAX;" << maxFF << "\n";
+        csvFile << "MEAN;" << meanFF << "\n";
+        csvFile << "STD_DEV;" << stdDevFF << "\n";
+    }
+
+    csvFile.close();
+}
 
     void BinDrawer::populateColors() {
         Colors.clear();
