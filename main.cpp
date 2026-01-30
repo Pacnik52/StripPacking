@@ -1,8 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <filesystem> // C++17, do tworzenia folderów
-#include <set>
+#include <filesystem>
 #include "startegy/FFN.h"
 #include "startegy/BinpackConstructionHeuristic.h"
 #include "startegy/EvolutionaryAlgorithm.h"
@@ -18,7 +17,8 @@ const int DATASET_SIZE = 10;
 const bool TRAINING_MODE = false;
 const bool SPECIALIST_EVOLUTION = false;
 
-void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils::FFN>& heuristic, std::vector<BinpackData>& datasets, const nnutils::FFN::Config& ffnConfig) {
+void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
+                          std::vector<BinpackData> &datasets, const nnutils::FFN::Config &ffnConfig) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, datasets);
     if (TRAINING_MODE) {
         // Uczenie heurystyki za pomocą algorytmu ewolucyjnego
@@ -26,8 +26,8 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
 
         // Wczytywanie ostatniej populacji sieci
         auto population_final = ea.getPopulation();
-        vector<vector<double>> allWeights;
-        for(const auto& ind : population_final) {
+        vector<vector<double> > allWeights;
+        for (const auto &ind: population_final) {
             allWeights.push_back(ind.genes);
         }
         // Zapisanie wag najlepszych sieci do plików
@@ -35,22 +35,24 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
         std::cout << "Final population of network weights saved." << std::endl;
         // Rysowanie wynikow i tworzenie tabeli
         BinDrawer drawer;
-        drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists", DRAW_ALL_SOLUTIONS);
-    }
-    else {
+        drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists",
+                                        DRAW_ALL_SOLUTIONS);
+    } else {
         // Wczytanie wag sieci z plikow
-        vector<vector<double>> allWeights = nnutils::FFN::load_population("../best_models_specialists/");
+        vector<vector<double> > allWeights = nnutils::FFN::load_population("../best_models_specialists/");
         if (allWeights.empty()) {
             std::cerr << "Error: Failed to load models or directory is empty." << std::endl;
         }
 
         // Rysowanie wynikow i tworzenie tabeli
         BinDrawer drawer;
-        drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists", DRAW_ALL_SOLUTIONS);
+        drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists",
+                                        DRAW_ALL_SOLUTIONS);
     }
 }
 
-void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils::FFN>& heuristic, std::vector<BinpackData>& datasets, const nnutils::FFN::Config& ffnConfig) {
+void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
+                      std::vector<BinpackData> &datasets, const nnutils::FFN::Config &ffnConfig) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, datasets);
     vector<double> bestWeights;
     if (TRAINING_MODE) {
@@ -65,12 +67,11 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
         // Zapisanie najlepszego modelu do pliku
         nnutils::FFN tempNet(ffnConfig);
         tempNet.setParams(bestWeights.data(), bestWeights.size());
-        tempNet.save("../best_models","best_model");
-    }
-    else {
+        tempNet.save("../best_models", "best_model");
+    } else {
         // Wczytanie wag z pliku
         nnutils::FFN tempNet(ffnConfig);
-        if (!tempNet.load("../best_models/best_model")) {
+        if (!tempNet.load("../best_models/new_best_best_model")) {
             std::cerr << "Error: Could not load model from " << "../best_models" << std::endl;
         }
         // Pobranie wag do heurystyki
@@ -117,7 +118,7 @@ int main() {
     std::cout << "Loaded " << datasets.size() << " instances." << std::endl;
     if (SPECIALIST_EVOLUTION) {
         specialist_evolution(evoParams, heuristic, datasets, ffnConfig);
-    }else {
+    } else {
         normal_evolution(evoParams, heuristic, datasets, ffnConfig);
     }
     return 0;

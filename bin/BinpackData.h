@@ -1,17 +1,14 @@
 #pragma once
 #include  <string>
 #include <vector>
-// #include "DataConcept.h"
 
 namespace binpack {
     using namespace std;
 
-   // typedef pair<int, Pos> BoxPosType;
+    // typedef pair<int, Pos> BoxPosType;
 
     struct BinpackData {
-
-        struct BoxType    {
-
+        struct BoxType {
             int idx;
 
             int SizeX;
@@ -20,15 +17,17 @@ namespace binpack {
             bool operator==(const BoxType &o) const {
                 return SizeX == o.SizeX && SizeY == o.SizeY;
             }
+
             bool operator!=(const BoxType &o) const {
-                return !(*this == o) ;
+                return !(*this == o);
             }
 
             BoxType() {
             }
 
-            BoxType(int _SizeX, int _SizeY) :  SizeX(_SizeX), SizeY(_SizeY) {
+            BoxType(int _SizeX, int _SizeY) : SizeX(_SizeX), SizeY(_SizeY) {
             }
+
             BoxType(int _idx, int _SizeX, int _SizeY) : idx(_idx), SizeX(_SizeX), SizeY(_SizeY) {
             }
         };
@@ -42,8 +41,7 @@ namespace binpack {
             Pos() : X(0), Y(0), Rotated(false), binIdx(-1) {
             }
 
-            Pos(int _X, int _Y,bool _Rotated, int _binIdx) :
-            X(_X), Y(_Y), Rotated(_Rotated), binIdx(_binIdx) {
+            Pos(int _X, int _Y, bool _Rotated, int _binIdx) : X(_X), Y(_Y), Rotated(_Rotated), binIdx(_binIdx) {
             }
         };
 
@@ -52,16 +50,18 @@ namespace binpack {
 
         struct SolutionType {
             double obj;
-            vector<pair<int, Pos>> BPV;
+            vector<pair<int, Pos> > BPV;
             int cluster = -1;
 
             // interface of the SolutionConcept
             double getObj() const {
                 return obj;
             }
-            void setObj (double _obj) {
+
+            void setObj(double _obj) {
                 obj = _obj;
             }
+
             void setCluster(int c) {
                 cluster = c;
             }
@@ -71,7 +71,7 @@ namespace binpack {
             return Solution.getObj();
         }
 
-        const SolutionType& getSolution() {
+        const SolutionType &getSolution() {
             return Solution;
         }
 
@@ -110,14 +110,5 @@ namespace binpack {
 
         BinpackData() {
         }
-
-        //
-        // vector<int> getVecToLoad() const {
-        //     return BoxToLoad;
-        // }
     };
-
-    // static_assert(SolutionConcept<BinpackData::SolutionType>);
-    // static_assert(DataConcept<BinpackData>);
-
 }
