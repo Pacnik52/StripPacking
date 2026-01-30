@@ -6,17 +6,17 @@
 #include <iomanip>
 #include "DataLoaderOdp.h"
 #include "../Err.h"
-#include "../utils.h"
 
 namespace binpack {
-    void DataLoaderOdp::load(const std::string& filename, std::vector<BinpackData> &IODs, bool odp, int start, int size) {
+    void DataLoaderOdp::load(const std::string &filename, std::vector<BinpackData> &IODs, bool odp, int start,
+                             int size) {
         IODs.clear();
         int numIODs;
         int numLargeObjects;
         int W, V;
         int n;
         std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
-        const std::filesystem::path FSP{"../data/"+filename + ".txt"};
+        const std::filesystem::path FSP{"../data/" + filename + ".txt"};
         std::ifstream ifs(FSP);
         if (!ifs.is_open()) {
             return;
@@ -26,8 +26,7 @@ namespace binpack {
 
         int idx = 0;
         int numLines = (odp ? 10 : 9);
-        while (std::getline(ifs, line))
-        {
+        while (std::getline(ifs, line)) {
             idx++;
             if (idx == numLines) break;
         }
@@ -60,9 +59,9 @@ namespace binpack {
     }
 
     void DataLoaderOdp::loadFromMultipleFiles(
-        const std::vector<std::string>& filenames,
+        const std::vector<std::string> &filenames,
         int totalTasks,
-        std::vector<BinpackData>& IODs,
+        std::vector<BinpackData> &IODs,
         bool odp
     ) {
         IODs.clear();
@@ -75,11 +74,11 @@ namespace binpack {
             if (tasksToRead == 0) continue;
             std::vector<BinpackData> tempIODs;
             DataLoaderOdp::load(filenames[i], tempIODs, odp, 0, tasksToRead);
-            for (auto& iod : tempIODs) {
-                if ((int)IODs.size() < totalTasks)
+            for (auto &iod: tempIODs) {
+                if ((int) IODs.size() < totalTasks)
                     IODs.push_back(iod);
             }
-            if ((int)IODs.size() >= totalTasks) break;
+            if ((int) IODs.size() >= totalTasks) break;
         }
     }
 }
