@@ -81,4 +81,44 @@ namespace binpack {
             if ((int) IODs.size() >= totalTasks) break;
         }
     }
+
+    void DataLoaderOdp::loadTrainAndValidationFromMultipleFiles(
+        const std::vector<std::string> &filenames,
+        std::vector<BinpackData> &trainSet,
+        int trainSize,
+        std::vector<BinpackData> &valSet,
+        int valSize,
+        bool odp
+    ) {
+        trainSet.clear();
+        valSet.clear();
+        int filesCount = filenames.size();
+        if (filesCount == 0) return;
+
+        int trainPerFile = trainSize / filesCount;
+        int trainRemainder = trainSize % filesCount;
+
+        int valPerFile = valSize / filesCount;
+        int valRemainder = valSize % filesCount;
+
+        int trainSoFar = 0, valSoFar = 0;
+        for (int i = 0; i < filesCount; ++i) {
+            int tCount = trainPerFile + (i < trainRemainder ? 1 : 0);
+            int vCount = valPerFile + (i < valRemainder ? 1 : 0);
+            std::vector<BinpackData> tempTrain, tempVal;
+            if (tCount > 0) {
+                DataLoaderOdp::load(filenames[i], tempTrain, odp, 0, tCount);
+                int toAdd = std::min(tCount, trainSize - trainSoFar);
+                trainSet.insert(trainSet.end(), tempTrain.begin(), tempTrain.begin() + toAdd);
+                trainSoFar += toAdd;
+            }
+            if (vCount > 0) {
+                DataLoaderOdp::load(filenames[i], tempVal, odp, tCount, vCount);
+                int toAdd = std::min(vCount, valSize - valSoFar);
+                valSet.insert(valSet.end(), tempVal.begin(), tempVal.begin() + toAdd);
+                valSoFar += toAdd;
+            }
+            if (trainSoFar >= trainSize && valSoFar >= valSize) break;
+        }
+    }
 }
