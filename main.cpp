@@ -13,17 +13,19 @@ using namespace binpack;
 using namespace std;
 
 const bool DRAW_ALL_SOLUTIONS = true;
-const int DATASET_SIZE = 10;
-const bool TRAINING_MODE = false;
-const bool SPECIALIST_EVOLUTION = false;
+const int TRAINING_DATASET_SIZE = 10;
+const int VALIDATION_DATASET_SIZE = 3;
+const int VALIDATION_INTERATIONS = 10;
+const bool TRAINING_MODE = true;
+const bool SPECIALIST_EVOLUTION = true;
 
 void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
-                          std::vector<BinpackData> &datasets, const nnutils::FFN::Config &ffnConfig) {
-    EvolutionaryAlgorithm ea(evoParams, heuristic, datasets);
+                          std::vector<BinpackData> &trainingSet, const nnutils::FFN::Config &ffnConfig,
+                          std::vector<BinpackData> &validationSet) {
+    EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
     if (TRAINING_MODE) {
         // Uczenie heurystyki za pomocą algorytmu ewolucyjnego
         ea.run();
-
         // Wczytywanie ostatniej populacji sieci
         auto population_final = ea.getPopulation();
         vector<vector<double> > allWeights;
@@ -35,7 +37,7 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
         std::cout << "Final population of network weights saved." << std::endl;
         // Rysowanie wynikow i tworzenie tabeli
         BinDrawer drawer;
-        drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists",
+        drawer.print_specialist_results(trainingSet, allWeights, heuristic, "../solutions_specialists",
                                         DRAW_ALL_SOLUTIONS);
     } else {
         // Wczytanie wag sieci z plikow
@@ -43,17 +45,17 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
         if (allWeights.empty()) {
             std::cerr << "Error: Failed to load models or directory is empty." << std::endl;
         }
-
         // Rysowanie wynikow i tworzenie tabeli
         BinDrawer drawer;
-        drawer.print_specialist_results(datasets, allWeights, heuristic, "../solutions_specialists",
+        drawer.print_specialist_results(trainingSet, allWeights, heuristic, "../solutions_specialists",
                                         DRAW_ALL_SOLUTIONS);
     }
 }
 
 void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
-                      std::vector<BinpackData> &datasets, const nnutils::FFN::Config &ffnConfig) {
-    EvolutionaryAlgorithm ea(evoParams, heuristic, datasets);
+                      std::vector<BinpackData> &trainingSet, const nnutils::FFN::Config &ffnConfig,
+                      std::vector<BinpackData> &validationSet) {
+    EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
     vector<double> bestWeights;
     if (TRAINING_MODE) {
         ea.run();
@@ -62,8 +64,7 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
         heuristic.setParams(bestWeights.data(), bestWeights.size());
         cout << "Training finished. Best weights found." << endl;
         BinDrawer drawer;
-        drawer.print_solutions(datasets, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
-
+        drawer.print_solutions(trainingSet, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
         // Zapisanie najlepszego modelu do pliku
         nnutils::FFN tempNet(ffnConfig);
         tempNet.setParams(bestWeights.data(), bestWeights.size());
@@ -80,7 +81,7 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
         heuristic.setParams(bestWeights.data(), bestWeights.size());
         // Zapisanie rozwiązań do plików
         BinDrawer drawer;
-        drawer.print_solutions(datasets, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
+        drawer.print_solutions(trainingSet, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
     }
 }
 
@@ -103,23 +104,27 @@ int main() {
 
     // Loading data from files
     std::cout << "Loading data..." << std::endl;
-    std::vector<BinpackData> datasets;
+    std::vector<BinpackData> trainingDataset;
+    std::vector<BinpackData> validationSet;
     std::vector<std::string> filenames = {
         "ODPS_data_10_1-5_1",
         "ODPS_data_10_1-5_2",
         "ODPS_data_10_1-5_6",
         "ODPS_data_10_1-5_16"
     };
-    DataLoaderOdp::loadFromMultipleFiles(filenames, DATASET_SIZE, datasets, true);
-    if (datasets.empty()) {
+    DataLoaderOdp::loadTrainAndValidationFromMultipleFiles(filenames, trainingDataset, TRAINING_DATASET_SIZE,
+                                                           validationSet,
+                                                           VALIDATION_DATASET_SIZE, true);
+    if (trainingDataset.empty() or validationSet.empty()) {
         std::cerr << "Error: No datasets loaded!" << std::endl;
         return 1;
     }
-    std::cout << "Loaded " << datasets.size() << " instances." << std::endl;
+    std::cout << "Loaded " << trainingDataset.size() << " training instances and " << validationSet.size() <<
+            " validation instances." << std::endl;
     if (SPECIALIST_EVOLUTION) {
-        specialist_evolution(evoParams, heuristic, datasets, ffnConfig);
+        specialist_evolution(evoParams, heuristic, trainingDataset, ffnConfig, validationSet);
     } else {
-        normal_evolution(evoParams, heuristic, datasets, ffnConfig);
+        normal_evolution(evoParams, heuristic, trainingDataset, ffnConfig, validationSet);
     }
     return 0;
 }

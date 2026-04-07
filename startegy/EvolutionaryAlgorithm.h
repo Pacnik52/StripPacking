@@ -10,17 +10,16 @@
 #include "../bin_reader/DataLoaderOdp.h"
 
 namespace binpack {
-
     struct EvoParams {
         int populationSize = 100;
-        int generations = 1000;       
+        int generations = 1000;
         int batchSize = 100;
         double mutationRate = 0.1;
         double mutationSigma = 0.1;
         bool mutationAnnealing = true;
         double crossoverRate = 0.8;
         bool elitism = true;
-        int eliteSize = populationSize/10;
+        int eliteSize = populationSize / 10;
         int tournamentSize = 5;
         bool crossover = false;
     };
@@ -40,17 +39,17 @@ namespace binpack {
         EvoParams params;
         HeuristicType heuristicPrototype;
         std::vector<BinpackData> allTrainingData;
-
+        std::vector<BinpackData> validationData;
         std::mt19937 rng;
         std::vector<Individual> population;
         int nextIndId = 0;
 
     public:
-        EvolutionaryAlgorithm(const EvoParams& _params,
-                              const HeuristicType& _heuristic,
-                              const std::vector<BinpackData>& _data)
-            : params(_params), heuristicPrototype(_heuristic), allTrainingData(_data) {
-
+        EvolutionaryAlgorithm(const EvoParams &_params,
+                              const HeuristicType &_heuristic,
+                              const std::vector<BinpackData> &_data,
+                              const std::vector<BinpackData> &_validation = {})
+            : params(_params), heuristicPrototype(_heuristic), allTrainingData(_data), validationData(_validation) {
             std::random_device rd;
             rng.seed(rd());
 
@@ -63,9 +62,9 @@ namespace binpack {
 
             std::normal_distribution<double> dist(0.0, 0.1);
 
-            for (auto& ind : population) {
+            for (auto &ind: population) {
                 ind.genes.resize(genomeSize);
-                for (double& gene : ind.genes) {
+                for (double &gene: ind.genes) {
                     gene = dist(rng);
                 }
                 ind.avgFitness = -DBL_MAX;
@@ -78,17 +77,16 @@ namespace binpack {
             std::cout << "Starting Specialist Evolution. Genome size: " << genomeSize << std::endl;
 
             for (int gen = 0; gen < params.generations; ++gen) {
-
                 // Wybór losowego batcha zadań
                 std::vector<BinpackData> batch;
                 std::sample(allTrainingData.begin(), allTrainingData.end(),
                             std::back_inserter(batch), params.batchSize, rng);
 
                 // Macierz wyników: [Siec][Zadanie] -> wynik (fill factor)
-                std::vector<std::vector<double>> scores(params.populationSize, std::vector<double>(batch.size()));
+                std::vector<std::vector<double> > scores(params.populationSize, std::vector<double>(batch.size()));
 
                 // Ewaluacja calej populacji sieci dla wszystkich zadań
-                #pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic)
                 for (int i = 0; i < params.populationSize; ++i) {
                     HeuristicType localHeuristic = heuristicPrototype;
                     localHeuristic.setParams(population[i].genes.data(), population[i].genes.size());
@@ -107,7 +105,7 @@ namespace binpack {
                 // double globalBestAvg = -DBL_MAX;
                 // for(const auto& ind : population) globalBestAvg = std::max(globalBestAvg, ind.avgFitness);
                 // std::cout << "Gen " << gen << " | Max Avg Fitness: " << globalBestAvg << " ..." << std::endl;
-                std::cout << "Gen " << gen << "..."<< std::endl;
+                std::cout << "Gen " << gen << "..." << std::endl;
 
                 // Selekcja rodzicow nastepnej generacji - dla kazdego zadania zostaje wybrana najlepsza siec ktora zostaje rodzicem
                 std::vector<int> parentIndices;
@@ -135,7 +133,7 @@ namespace binpack {
                 // Jesli elitaryzm to przenosimy najlepsze rozwiazania do nowej populacji bez mutacji
                 if (params.elitism) {
                     std::set<int> uniqueWinners(parentIndices.begin(), parentIndices.end());
-                    for(int idx : uniqueWinners) {
+                    for (int idx: uniqueWinners) {
                         newPop.push_back(population[idx]);
                     }
                 }
@@ -159,7 +157,7 @@ namespace binpack {
                         child.id = nextIndId++;
                         newPop.push_back(child);
                     }
-                }else {
+                } else {
                     while (newPop.size() < params.populationSize) {
                         int p_idx = parentIndices[parentDist(rng)];
 
@@ -180,6 +178,14 @@ namespace binpack {
                 if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
                     params.mutationSigma *= 0.98;
                 }
+                // Ewaluacja na zbiorze walidacyjnym co 10 generacji
+                if (!validationData.empty() && gen % 10 == 0) {
+                    std::vector<double> valScores = evaluatePopulation(validationData);
+                    double bestVal = *std::max_element(valScores.begin(), valScores.end());
+                    double avgVal = std::accumulate(valScores.begin(), valScores.end(), 0.0) / valScores.size();
+                    std::cout << "[VALIDATION] Gen " << gen << " | Best: " << bestVal << " | Avg: " << avgVal <<
+                            std::endl;
+                }
             }
         }
 
@@ -188,7 +194,6 @@ namespace binpack {
             std::cout << "Starting Normal Evolution. Genome size (weights): " << genomeSize << std::endl;
 
             for (int gen = 0; gen < params.generations; ++gen) {
-
                 // Wybór losowego batcha zadań
                 std::vector<BinpackData> batch;
                 std::sample(allTrainingData.begin(), allTrainingData.end(),
@@ -198,9 +203,9 @@ namespace binpack {
                 evaluatePopulationNormal(batch);
                 // Sortowanie populacji malejąco po fitness
                 std::sort(population.begin(), population.end(),
-                    [](const Individual& a, const Individual& b) {
-                        return a.avgFitness > b.avgFitness;
-                    });
+                          [](const Individual &a, const Individual &b) {
+                              return a.avgFitness > b.avgFitness;
+                          });
 
                 double bestFit = population[0].avgFitness;
                 std::cout << "Gen " << gen << " | Best Fitness (Avg Fill Factor): " << bestFit << std::endl;
@@ -219,17 +224,17 @@ namespace binpack {
                 // Rodzice wybierani selekcja turniejowa
                 if (params.crossover) {
                     while (newPop.size() < params.populationSize) {
-                        const auto& p1 = tournamentSelect();
-                        const auto& p2 = tournamentSelect();
+                        const auto &p1 = tournamentSelect();
+                        const auto &p2 = tournamentSelect();
 
                         Genome childGenes = crossover(p1.genes, p2.genes);
                         mutate(childGenes);
 
                         newPop.push_back({childGenes, -DBL_MAX});
                     }
-                }else {
+                } else {
                     while (newPop.size() < params.populationSize) {
-                        const auto& p1 = tournamentSelect();
+                        const auto &p1 = tournamentSelect();
 
                         Genome childGenes = p1.genes;
                         mutate(childGenes);
@@ -244,10 +249,18 @@ namespace binpack {
                 if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
                     params.mutationSigma *= 0.98;
                 }
+                // Ewaluacja na zbiorze walidacyjnym co 10 generacji
+                if (!validationData.empty() && gen % 10 == 0) {
+                    std::vector<double> valScores = evaluatePopulation(validationData);
+                    double bestVal = *std::max_element(valScores.begin(), valScores.end());
+                    double avgVal = std::accumulate(valScores.begin(), valScores.end(), 0.0) / valScores.size();
+                    std::cout << "[VALIDATION] Gen " << gen << " | Best: " << bestVal << " | Avg: " << avgVal <<
+                            std::endl;
+                }
             }
         }
 
-        Genome crossover(const Genome& p1, const Genome& p2) {
+        Genome crossover(const Genome &p1, const Genome &p2) {
             std::uniform_real_distribution<double> dist(0.0, 1.0);
             Genome child = p1;
             if (dist(rng) < params.crossoverRate) {
@@ -258,17 +271,17 @@ namespace binpack {
             return child;
         }
 
-        void mutate(Genome& genome) {
+        void mutate(Genome &genome) {
             std::uniform_real_distribution<double> prob(0.0, 1.0);
             std::normal_distribution<double> noise(0.0, params.mutationSigma);
-            for (double& gene : genome) {
+            for (double &gene: genome) {
                 if (prob(rng) < params.mutationRate) {
                     gene += noise(rng);
                 }
             }
         }
 
-        const Individual& tournamentSelect() {
+        const Individual &tournamentSelect() {
             std::uniform_int_distribution<int> dist(0, params.populationSize - 1);
             int bestIdx = dist(rng);
 
@@ -281,8 +294,8 @@ namespace binpack {
             return population[bestIdx];
         }
 
-        void evaluatePopulationNormal(const std::vector<BinpackData>& batch) {
-            #pragma omp parallel for schedule(dynamic)
+        void evaluatePopulationNormal(const std::vector<BinpackData> &batch) {
+#pragma omp parallel for schedule(dynamic)
             for (int i = 0; i < population.size(); ++i) {
                 // Kopia heurystyki dla każdego wątku
                 HeuristicType localHeuristic = heuristicPrototype;
@@ -291,13 +304,32 @@ namespace binpack {
                 localHeuristic.setParams(population[i].genes.data(), population[i].genes.size());
 
                 double totalFillFactor = 0.0;
-                for (const auto& instance : batch) {
+                for (const auto &instance: batch) {
                     auto solution = localHeuristic.run(instance);
                     totalFillFactor += solution.getObj();
                 }
                 // średni fill factor dla każdej z sieci
                 population[i].avgFitness = totalFillFactor / batch.size();
             }
+        }
+
+        // Ewaluacja populacji na dowolnym zbiorze danych
+        std::vector<double> evaluatePopulation(const std::vector<BinpackData> &data) {
+            std::vector<double> results(population.size(), 0.0);
+#pragma omp parallel for schedule(dynamic)
+            for (int i = 0; i < population.size(); ++i) {
+                // Kopia heurystyki dla każdego wątku
+                HeuristicType localHeuristic = heuristicPrototype;
+                // Ustawienie wag z genotypu
+                localHeuristic.setParams(population[i].genes.data(), population[i].genes.size());
+                double total = 0.0;
+                for (const auto &instance: data) {
+                    auto solution = localHeuristic.run(instance);
+                    total += solution.getObj();
+                }
+                results[i] = total / data.size();
+            }
+            return results;
         }
 
         std::vector<Individual> getPopulation() const {
@@ -309,12 +341,13 @@ namespace binpack {
         }
 
         // Zwraca populacje bez duplikatow
-        std::vector<std::vector<double>> getUniquePopulation() {
-            std::vector<std::vector<double>> uniqueWeights;
-            for(const auto& ind : population) {
+        std::vector<std::vector<double> > getUniquePopulation() {
+            std::vector<std::vector<double> > uniqueWeights;
+            for (const auto &ind: population) {
                 uniqueWeights.push_back(ind.genes);
             }
             return uniqueWeights;
         }
     };
 }
+
