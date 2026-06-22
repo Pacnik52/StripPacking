@@ -264,8 +264,9 @@ namespace binpack {
             std::uniform_real_distribution<double> dist(0.0, 1.0);
             Genome child = p1;
             if (dist(rng) < params.crossoverRate) {
+                std::bernoulli_distribution pickParent(0.5);
                 for (size_t i = 0; i < p1.size(); ++i) {
-                    child[i] = (p1[i] + p2[i]) / 2.0;
+                    child[i] = pickParent(rng) ? p1[i] : p2[i];
                 }
             }
             return child;

@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <omp.h>
 #include "startegy/FFN.h"
 #include "startegy/BinpackConstructionHeuristic.h"
 #include "startegy/EvolutionaryAlgorithm.h"
