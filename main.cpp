@@ -2,9 +2,8 @@
 #include <vector>
 #include <string>
 #include <filesystem>
-#include <numeric>
-#include <algorithm>
 #include <omp.h>
+#include "Consts.h"
 #include "startegy/FFN.h"
 #include "startegy/BinpackConstructionHeuristic.h"
 #include "startegy/EvolutionaryAlgorithm.h"
@@ -14,17 +13,6 @@
 
 using namespace binpack;
 using namespace std;
-
-const bool DRAW_ALL_SOLUTIONS = false;
-const int TRAINING_DATASET_SIZE = 100;
-const int VALIDATION_DATASET_SIZE = 100;
-const int VALIDATION_INTERATIONS = 10;
-const bool SPECIALIST_EVOLUTION = true;
-const bool TRAINING_MODE = true;
-const bool ONLY_SELECTION_MODE = true;
-const std::string SELECTION_MODE_WEIGHTS_DIR = "../best_models_specialists_whole_final_1/";
-const std::string ONLY_RESULTS_MODE_WEIGHTS_DIR = "na razie nie ma :)";
-
 
 std::string getCurrentDateString() {
     auto now = std::chrono::system_clock::now();
@@ -64,7 +52,7 @@ void select_and_save_specialists(EvolutionaryAlgorithm &ea,
     std::cout << "Saved " << specialists.size() << " network models to " << specialistWeightsDir << std::endl;
     BinDrawer drawer;
     drawer.print_specialist_results(testSet, specialistWeights, heuristic, resultsDir, sizeStr,
-                                    DRAW_ALL_SOLUTIONS);
+                                    config::DRAW_ALL_SOLUTIONS);
     std::cout << "Saved results to " << resultsDir << std::endl;
 }
 
@@ -73,9 +61,9 @@ void only_selection_mode(EvoParams evoParams, BinpackConstructionHeuristic<nnuti
                          std::vector<BinpackData> &validationSet) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
 
-    vector<vector<double> > allWeights = nnutils::FFN::load_population(SELECTION_MODE_WEIGHTS_DIR);
+    vector<vector<double> > allWeights = nnutils::FFN::load_population(config::SELECTION_MODE_WEIGHTS_DIR);
     if (allWeights.empty()) {
-        std::cerr << "Error: Failed to load models from " << SELECTION_MODE_WEIGHTS_DIR << std::endl;
+        std::cerr << "Error: Failed to load models from " << config::SELECTION_MODE_WEIGHTS_DIR << std::endl;
         return;
     }
 
@@ -89,7 +77,8 @@ void only_selection_mode(EvoParams evoParams, BinpackConstructionHeuristic<nnuti
     }
 
     // Przygotowanie folderów
-    std::string baseDir = "../results_specialist_" + getCurrentDateString();
+    std::string dateStr = getCurrentDateString();
+    std::string baseDir = "../results_specialist_" + dateStr;
     std::string resultsDir = baseDir + "/results";
     std::string weightsDir = baseDir + "/weights";
     std::filesystem::create_directories(resultsDir);
@@ -100,7 +89,7 @@ void only_selection_mode(EvoParams evoParams, BinpackConstructionHeuristic<nnuti
     BinDrawer drawer;
     std::cout << "Creating score matrix..." << std::endl;
     auto scoreMatrix = drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all",
-                                                       DRAW_ALL_SOLUTIONS);
+                                                       config::DRAW_ALL_SOLUTIONS);
 
     std::vector<int> subsetSizes = {5, 10, 20, 50, 100};
     for (int size: subsetSizes) {
@@ -120,11 +109,8 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
                           std::vector<BinpackData> &validationSet) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
 
-    // std::string baseDir = "../results_specialist_" + getCurrentDateString();
-    // std::string resultsDir = baseDir + "/results";
-    // std::string weightsDir = baseDir + "/weights";
     std::vector<std::vector<double> > allWeights;
-    if (TRAINING_MODE) {
+    if (config::TRAINING_MODE) {
         ea.run();
         // get final populations
         auto collectedPopulations = ea.getFinalPopulations();
@@ -134,17 +120,19 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
         }
 
         // Przygotowanie folderów
-        std::string baseDir = "../results_specialist_" + getCurrentDateString();
+        std::string dateStr = getCurrentDateString();
+        std::string baseDir = "../results_specialist/" + dateStr;
         std::string resultsDir = baseDir + "/results";
         std::string weightsDir = baseDir + "/weights";
         std::filesystem::create_directories(resultsDir);
         std::filesystem::create_directories(weightsDir);
 
         std::cout << "Saving ALL loaded weights and calculating their global results..." << std::endl;
+        config::saveConfig(baseDir + "/params_" + dateStr + ".txt");
         nnutils::FFN::save_population(weightsDir + "/weights_all", allWeights, ffnConfig);
         BinDrawer drawer;
         auto scoreMatrix = drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all",
-                                                           DRAW_ALL_SOLUTIONS);
+                                                           config::DRAW_ALL_SOLUTIONS);
 
         std::vector<int> subsetSizes = {5, 10, 20, 50, 100};
         for (int size: subsetSizes) {
@@ -159,16 +147,17 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
                                         ffnConfig);
         }
     } else {
-        allWeights = nnutils::FFN::load_population(ONLY_RESULTS_MODE_WEIGHTS_DIR);
+        allWeights = nnutils::FFN::load_population(config::ONLY_RESULTS_MODE_WEIGHTS_DIR);
         if (allWeights.empty()) {
-            std::cerr << "Error: Failed to load models from " << ONLY_RESULTS_MODE_WEIGHTS_DIR << std::endl;
+            std::cerr << "Error: Failed to load models from " << config::ONLY_RESULTS_MODE_WEIGHTS_DIR << std::endl;
             return;
         }
         std::string resultsDir = "../results_specialists/specialists_results_" + getCurrentDateString();
         std::filesystem::create_directories(resultsDir);
 
         BinDrawer drawer;
-        drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all", DRAW_ALL_SOLUTIONS);
+        drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all",
+                                        config::DRAW_ALL_SOLUTIONS);
     }
 }
 
@@ -177,13 +166,13 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
                       std::vector<BinpackData> &validationSet) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
     vector<double> bestWeights;
-    if (TRAINING_MODE) {
+    if (config::TRAINING_MODE) {
         ea.run_normal();
         bestWeights = ea.getBestWeights();
         heuristic.setParams(bestWeights.data(), bestWeights.size());
         cout << "Training finished. Best weights found." << endl;
         BinDrawer drawer;
-        drawer.print_solutions(trainingSet, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
+        drawer.print_solutions(trainingSet, heuristic, "../solutions", config::DRAW_ALL_SOLUTIONS);
 
         nnutils::FFN tempNet(ffnConfig);
         tempNet.setParams(bestWeights.data(), bestWeights.size());
@@ -197,7 +186,7 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
         tempNet.getParams(bestWeights.data(), bestWeights.size());
         heuristic.setParams(bestWeights.data(), bestWeights.size());
         BinDrawer drawer;
-        drawer.print_solutions(trainingSet, heuristic, "../solutions", DRAW_ALL_SOLUTIONS);
+        drawer.print_solutions(trainingSet, heuristic, "../solutions", config::DRAW_ALL_SOLUTIONS);
     }
 }
 
@@ -208,16 +197,16 @@ int main() {
     BinpackConstructionHeuristic<nnutils::FFN> heuristic(heuristicConfig);
 
     EvoParams evoParams;
-    evoParams.populationSize = 500;
-    evoParams.generations = 100;
-    evoParams.batchSize = 100;
-    evoParams.mutationSigma = 0.2;
-    evoParams.mutationAnnealing = true;
-    evoParams.elitism = true;
-    evoParams.crossover = false;
-    evoParams.validationCheckInterval = 10;
-    evoParams.finalEvaluationWindow = 100;
-    evoParams.specialistSetSize = 100;
+    evoParams.populationSize = config::POPULATION_SIZE;
+    evoParams.generations = config::GENERATIONS;
+    evoParams.batchSize = config::BATCH_SIZE;
+    evoParams.mutationSigma = config::MUTATION_SIGMA;
+    evoParams.mutationAnnealing = config::MUTATION_ANNEALING;
+    evoParams.elitism = config::ELITISM;
+    evoParams.crossover = config::CROSSOVER;
+    evoParams.validationCheckInterval = config::VALIDATION_CHECK_INTERVAL;
+    evoParams.finalEvaluationWindow = config::FINAL_EVALUATION_WINDOW;
+    evoParams.specialistSetSize = config::SPECIALIST_SET_SIZE;
 
     std::cout << "Loading data..." << std::endl;
     std::vector<BinpackData> trainingDataset;
@@ -228,8 +217,8 @@ int main() {
         "ODPS_data_10_1-5_6",
         "ODPS_data_10_1-5_16"
     };
-    DataLoaderOdp::loadTrainAndValidationFromMultipleFiles(filenames, trainingDataset, TRAINING_DATASET_SIZE,
-                                                           validationSet, VALIDATION_DATASET_SIZE, true);
+    DataLoaderOdp::loadTrainAndValidationFromMultipleFiles(filenames, trainingDataset, config::TRAINING_DATASET_SIZE,
+                                                           validationSet, config::VALIDATION_DATASET_SIZE, true);
 
     if (trainingDataset.empty() or validationSet.empty()) {
         std::cerr << "Error: No datasets loaded!" << std::endl;
@@ -239,9 +228,9 @@ int main() {
             " validation instances." << std::endl;
 
     // Podzial trybow pracy programu
-    if (ONLY_SELECTION_MODE) {
+    if (config::ONLY_SELECTION_MODE) {
         only_selection_mode(evoParams, heuristic, trainingDataset, ffnConfig, validationSet);
-    } else if (SPECIALIST_EVOLUTION) {
+    } else if (config::SPECIALIST_EVOLUTION) {
         specialist_evolution(evoParams, heuristic, trainingDataset, ffnConfig, validationSet);
     } else {
         normal_evolution(evoParams, heuristic, trainingDataset, ffnConfig, validationSet);
