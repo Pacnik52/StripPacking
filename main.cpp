@@ -22,7 +22,8 @@ const int VALIDATION_INTERATIONS = 10;
 const bool SPECIALIST_EVOLUTION = true;
 const bool TRAINING_MODE = true;
 const bool ONLY_SELECTION_MODE = true;
-const std::string SPECIALIST_WEIGHTS_DIR = "../best_models_specialists_whole_final_1/";
+const std::string SELECTION_MODE_WEIGHTS_DIR = "../best_models_specialists_whole_final_1/";
+const std::string ONLY_RESULTS_MODE_WEIGHTS_DIR = "na razie nie ma :)";
 
 
 std::string getCurrentDateString() {
@@ -72,9 +73,9 @@ void only_selection_mode(EvoParams evoParams, BinpackConstructionHeuristic<nnuti
                          std::vector<BinpackData> &validationSet) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
 
-    vector<vector<double> > allWeights = nnutils::FFN::load_population(SPECIALIST_WEIGHTS_DIR);
+    vector<vector<double> > allWeights = nnutils::FFN::load_population(SELECTION_MODE_WEIGHTS_DIR);
     if (allWeights.empty()) {
-        std::cerr << "Error: Failed to load models from " << SPECIALIST_WEIGHTS_DIR << std::endl;
+        std::cerr << "Error: Failed to load models from " << SELECTION_MODE_WEIGHTS_DIR << std::endl;
         return;
     }
 
@@ -97,12 +98,13 @@ void only_selection_mode(EvoParams evoParams, BinpackConstructionHeuristic<nnuti
     std::cout << "Saving ALL loaded weights and calculating their global results..." << std::endl;
     nnutils::FFN::save_population(weightsDir + "/weights_all", allWeights, ffnConfig);
     BinDrawer drawer;
+    std::cout << "Creating score matrix..." << std::endl;
     auto scoreMatrix = drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all",
                                                        DRAW_ALL_SOLUTIONS);
 
     std::vector<int> subsetSizes = {5, 10, 20, 50, 100};
     for (int size: subsetSizes) {
-        if (size > candidatePool.size()) {
+        if (size > allWeights.size()) {
             std::cout << "Skipping selection for size " << size << ". Not enough networks in candidate pool." <<
                     std::endl;
             continue;
@@ -118,50 +120,55 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
                           std::vector<BinpackData> &validationSet) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
 
-    std::string baseDir = "../results_specialist_" + getCurrentDateString();
-    std::string resultsDir = baseDir + "/results";
-    std::string weightsDir = baseDir + "/weights";
-
+    // std::string baseDir = "../results_specialist_" + getCurrentDateString();
+    // std::string resultsDir = baseDir + "/results";
+    // std::string weightsDir = baseDir + "/weights";
+    std::vector<std::vector<double> > allWeights;
     if (TRAINING_MODE) {
         ea.run();
-
-        std::cout << "\n=== FINAL EVALUATION ON VALIDATION SET ===" << std::endl;
+        // get final populations
         auto collectedPopulations = ea.getFinalPopulations();
         std::cout << "Total collected individuals from final generations: " << collectedPopulations.size() << std::endl;
-
-        std::vector<std::vector<double> > allWeightsBeforeGreed;
         for (const auto &ind: collectedPopulations) {
-            allWeightsBeforeGreed.push_back(ind.genes);
+            allWeights.push_back(ind.genes);
         }
 
-        std::string allWeightsDir = baseDir + "/all_weights";
-        std::filesystem::create_directories(allWeightsDir);
+        // Przygotowanie folderów
+        std::string baseDir = "../results_specialist_" + getCurrentDateString();
+        std::string resultsDir = baseDir + "/results";
+        std::string weightsDir = baseDir + "/weights";
+        std::filesystem::create_directories(resultsDir);
+        std::filesystem::create_directories(weightsDir);
 
-        nnutils::FFN::save_population(allWeightsDir, allWeightsBeforeGreed, ffnConfig);
-        std::cout << "Final population of network weights saved to " << allWeightsDir << std::endl;
+        std::cout << "Saving ALL loaded weights and calculating their global results..." << std::endl;
+        nnutils::FFN::save_population(weightsDir + "/weights_all", allWeights, ffnConfig);
+        BinDrawer drawer;
+        auto scoreMatrix = drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all",
+                                                           DRAW_ALL_SOLUTIONS);
 
-        if (!collectedPopulations.empty() && !validationSet.empty()) {
-            std::string specialistsBaseDir = baseDir + "/specialists";
-            auto scoreMatrix = ea.buildScoreMatrix(collectedPopulations, validationSet);
-            select_and_save_specialists(ea, collectedPopulations, scoreMatrix, trainingSet, evoParams.specialistSetSize,
-                                        resultsDir, weightsDir, heuristic, ffnConfig);
-        } else {
-            std::cerr << "Error: No specialists collected or validation set is empty." << std::endl;
+        std::vector<int> subsetSizes = {5, 10, 20, 50, 100};
+        for (int size: subsetSizes) {
+            if (size > collectedPopulations.size()) {
+                std::cout << "Skipping selection for size " << size << ". Not enough networks in candidate pool." <<
+                        std::endl;
+                continue;
+            }
+            select_and_save_specialists(ea, collectedPopulations, scoreMatrix, validationSet, size, resultsDir,
+                                        weightsDir,
+                                        heuristic,
+                                        ffnConfig);
         }
     } else {
-        std::string weightsDir = baseDir + "/specialists/specialists_weights_" + std::to_string(
-                                     evoParams.specialistSetSize);
-        std::vector<std::vector<double> > allWeights = nnutils::FFN::load_population(weightsDir);
+        allWeights = nnutils::FFN::load_population(ONLY_RESULTS_MODE_WEIGHTS_DIR);
         if (allWeights.empty()) {
-            std::cerr << "Error: Failed to load models from " << weightsDir << std::endl;
+            std::cerr << "Error: Failed to load models from " << ONLY_RESULTS_MODE_WEIGHTS_DIR << std::endl;
             return;
         }
-        std::string resultsDir = baseDir + "/specialists/specialists_results_" + std::to_string(
-                                     evoParams.specialistSetSize);
+        std::string resultsDir = "../results_specialists/specialists_results_" + getCurrentDateString();
         std::filesystem::create_directories(resultsDir);
 
         BinDrawer drawer;
-        drawer.print_specialist_results(trainingSet, allWeights, heuristic, resultsDir, "all", DRAW_ALL_SOLUTIONS);
+        drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all", DRAW_ALL_SOLUTIONS);
     }
 }
 
