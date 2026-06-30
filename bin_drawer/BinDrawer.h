@@ -16,21 +16,21 @@ namespace binpack {
         BinDrawer() {
             populateColors();
 
-            if (!font.openFromFile("../bin_drawer/fnt/arial.ttf"))
-            {
+            if (!font.openFromFile("../bin_drawer/fnt/arial.ttf")) {
                 std::cerr << "Font file not found." << std::endl;
             }
         }
 
-        void print_solutions(std::vector<BinpackData>& datasets, BinpackConstructionHeuristic<nnutils::FFN>& heuristic, const std::string& outputDir, bool draw_all_solutions );
+        void print_solutions(std::vector<BinpackData> &datasets, BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
+                             const std::string &outputDir, bool draw_all_solutions);
 
         void populateColors();
 
-        void print_specialist_results(
-            std::vector<BinpackData>& datasets,
-            const std::vector<std::vector<double>>& populationGenomes,
-            BinpackConstructionHeuristic<nnutils::FFN>& heuristic,
-            const std::string& outputDir, bool draw_all_best_solutions
+        std::vector<std::vector<double> > print_specialist_results(
+            std::vector<BinpackData> &datasets,
+            const std::vector<std::vector<double> > &populationGenomes,
+            BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
+            const std::string &outputDir, const std::string &cvsID, bool draw_all_best_solutions
         );
 
         void drawToFile(const BinpackData &IOD, bool flip, string dir, string ext);

@@ -109,30 +109,34 @@ namespace binpack {
         std::shuffle(Colors.begin(), Colors.end(), std::mt19937(1));
     }
 
-    void BinDrawer::print_specialist_results(
+    std::vector<std::vector<double> > BinDrawer::print_specialist_results(
         std::vector<BinpackData> &datasets,
         const std::vector<std::vector<double> > &populationGenomes,
         BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
-        const std::string &outputDir, bool draw_all_best_solutions
+        const std::string &outputDir, const std::string &csvID, bool draw_all_best_solutions
     ) {
-        // Usuwanie wszystkich plików csv i png z outputDir
-        if (std::filesystem::exists(outputDir)) {
-            for (const auto &entry: std::filesystem::directory_iterator(outputDir)) {
-                if (entry.is_regular_file()) {
-                    std::string ext = entry.path().extension().string();
-                    if (ext == ".csv" || ext == ".png") {
-                        std::filesystem::remove(entry.path());
-                    }
-                }
-            }
-        } else {
-            std::filesystem::create_directory(outputDir);
-        }
-        std::string csvPath = outputDir + "/evaluation_results.csv";
+        // Inicjalizacja macierzy wyników
+        std::vector<std::vector<double> > scoreMatrix(populationGenomes.size(),
+                                                      std::vector<double>(datasets.size(), 0.0));
+
+        // // Usuwanie wszystkich plików csv i png z outputDir
+        // if (std::filesystem::exists(outputDir)) {
+        //     for (const auto &entry: std::filesystem::directory_iterator(outputDir)) {
+        //         if (entry.is_regular_file()) {
+        //             std::string ext = entry.path().extension().string();
+        //             if (ext == ".csv" || ext == ".png") {
+        //                 std::filesystem::remove(entry.path());
+        //             }
+        //         }
+        //     }
+        // } else {
+        std::filesystem::create_directory(outputDir);
+        // }
+        std::string csvPath = outputDir + "/evaluation_results_" + csvID + ".csv";
         std::ofstream csvFile(csvPath);
         if (!csvFile.is_open()) {
             std::cerr << "Error: Could not create CSV file at " << csvPath << std::endl;
-            return;
+            return scoreMatrix;
         }
 
         std::cout << "Saving results to: " << csvPath << std::endl;
@@ -145,9 +149,8 @@ namespace binpack {
         csvFile << ";BEST_NET_ID;BEST_FF;WORST_NET_ID;WORST_FF;MEAN_FF;STDDEV_FF\n";
 
         // Wypisywanie dla kazdego zadania
-        int taskCounter = 0;
-        for (auto &problem: datasets) {
-            taskCounter++;
+        for (size_t taskIdx = 0; taskIdx < datasets.size(); ++taskIdx) {
+            auto &problem = datasets[taskIdx];
             double bestFF = -DBL_MAX;
             int bestNetIdx = -1;
             double worstFF = DBL_MAX;
@@ -165,7 +168,10 @@ namespace binpack {
                 localHeuristic.setParams(populationGenomes[i].data(), populationGenomes[i].size());
 
                 auto sol = localHeuristic.run(problem);
-                currentScores[i] = sol.getObj();
+                double score = sol.getObj();
+
+                currentScores[i] = score;
+                scoreMatrix[i][taskIdx] = score;
             }
 
             // Zapis wynikow dla kazdego zadania do pliku CSV
@@ -197,15 +203,15 @@ namespace binpack {
                     ";" << stddevFF << "\n";
 
             // Print wyników
-            std::cout << "[" << taskCounter << "/" << datasets.size() << "] "
-                    << std::left << std::setw(25) << problem.fileName
-                    << " -> Best: Net_" << bestNetIdx
-                    << " (FF: " << std::fixed << std::setprecision(2) << bestFF * 100.0 << "%)"
-                    << ", Worst: Net_" << worstNetIdx
-                    << " (FF: " << std::fixed << std::setprecision(2) << worstFF * 100.0 << "%)"
-                    << ", Mean: " << meanFF * 100.0 << "%"
-                    << ", Stddev: " << stddevFF * 100.0 << "%"
-                    << std::endl;
+            // std::cout << "[" << taskIdx + 1 << "/" << datasets.size() << "] "
+            //         << std::left << std::setw(25) << problem.fileName
+            //         << " -> Best: Net_" << bestNetIdx
+            //         << " (FF: " << std::fixed << std::setprecision(2) << bestFF * 100.0 << "%)"
+            //         << ", Worst: Net_" << worstNetIdx
+            //         << " (FF: " << std::fixed << std::setprecision(2) << worstFF * 100.0 << "%)"
+            //         << ", Mean: " << meanFF * 100.0 << "%"
+            //         << ", Stddev: " << stddevFF * 100.0 << "%"
+            //         << std::endl;
 
             // Rysowanie najlepszego rozwiązania zadania
             if (draw_all_best_solutions && bestNetIdx >= 0) {
@@ -218,6 +224,9 @@ namespace binpack {
         csvFile.close();
         std::cout << "\nEvaluation completed. \nCSV Table: " << csvPath << "\nImages: " << outputDir << "/" <<
                 std::endl;
+
+        // Zwracamy gotową macierz wyników
+        return scoreMatrix;
     }
 
     void BinDrawer::drawToFile(const BinpackData &IOD, bool flip, const string dir, const string ext) {

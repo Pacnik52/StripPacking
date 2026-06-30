@@ -22,6 +22,9 @@ namespace binpack {
         int eliteSize = populationSize / 10;
         int tournamentSize = 5;
         bool crossover = false;
+        int validationCheckInterval = 10;
+        int finalEvaluationWindow = 100;
+        int specialistSetSize = 10;
     };
 
     class EvolutionaryAlgorithm {
@@ -42,6 +45,7 @@ namespace binpack {
         std::vector<BinpackData> validationData;
         std::mt19937 rng;
         std::vector<Individual> population;
+        std::vector<Individual> finalPopulations;
         int nextIndId = 0;
 
     public:
@@ -178,13 +182,15 @@ namespace binpack {
                 if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
                     params.mutationSigma *= 0.98;
                 }
-                // Ewaluacja na zbiorze walidacyjnym co 10 generacji
-                if (!validationData.empty() && gen % 10 == 0) {
-                    std::vector<double> valScores = evaluatePopulation(validationData);
-                    double bestVal = *std::max_element(valScores.begin(), valScores.end());
-                    double avgVal = std::accumulate(valScores.begin(), valScores.end(), 0.0) / valScores.size();
-                    std::cout << "[VALIDATION] Gen " << gen << " | Best: " << bestVal << " | Avg: " << avgVal <<
-                            std::endl;
+
+                // Zbieranie populacji z ostatnich N generacji co K generacji
+                int lastGenStart = params.generations - params.finalEvaluationWindow;
+                if (gen >= lastGenStart && gen % params.validationCheckInterval == 0) {
+                    for (const auto &ind: population) {
+                        finalPopulations.push_back(ind);
+                    }
+                    std::cout << "[COLLECT] Gen " << gen << " | Collected population of size " << population.size() <<
+                            " | Total collected: " << finalPopulations.size() << std::endl;
                 }
             }
         }
@@ -249,13 +255,15 @@ namespace binpack {
                 if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
                     params.mutationSigma *= 0.98;
                 }
-                // Ewaluacja na zbiorze walidacyjnym co 10 generacji
-                if (!validationData.empty() && gen % 10 == 0) {
-                    std::vector<double> valScores = evaluatePopulation(validationData);
-                    double bestVal = *std::max_element(valScores.begin(), valScores.end());
-                    double avgVal = std::accumulate(valScores.begin(), valScores.end(), 0.0) / valScores.size();
-                    std::cout << "[VALIDATION] Gen " << gen << " | Best: " << bestVal << " | Avg: " << avgVal <<
-                            std::endl;
+
+                // Zbieranie populacji z ostatnich N generacji co K generacji
+                int lastGenStart = params.generations - params.finalEvaluationWindow;
+                if (gen >= lastGenStart && gen % params.validationCheckInterval == 0) {
+                    for (const auto &ind: population) {
+                        finalPopulations.push_back(ind);
+                    }
+                    std::cout << "[COLLECT] Gen " << gen << " | Collected population of size " << population.size() <<
+                            " | Total collected: " << finalPopulations.size() << std::endl;
                 }
             }
         }
@@ -337,6 +345,112 @@ namespace binpack {
             return population;
         }
 
+        std::vector<Individual> getFinalPopulations() const {
+            return finalPopulations;
+        }
+
+        // Ewaluuje zebrane populacje na zbiorze danych i zwraca wyniki
+        std::vector<double> evaluateFinalPopulations(const std::vector<BinpackData> &data) {
+            std::vector<double> results(finalPopulations.size(), 0.0);
+#pragma omp parallel for schedule(dynamic)
+            for (int i = 0; i < finalPopulations.size(); ++i) {
+                // Kopia heurystyki dla każdego wątku
+                HeuristicType localHeuristic = heuristicPrototype;
+                // Ustawienie wag z genotypu
+                localHeuristic.setParams(finalPopulations[i].genes.data(), finalPopulations[i].genes.size());
+                double total = 0.0;
+                for (const auto &instance: data) {
+                    auto solution = localHeuristic.run(instance);
+                    total += solution.getObj();
+                }
+                results[i] = total / data.size();
+            }
+            return results;
+        }
+  // 1. Zbudowanie macierzy wyników TYLKO RAZ
+        std::vector<std::vector<double> > buildScoreMatrix(const std::vector<Individual> &candidatePool,
+                                                           const std::vector<BinpackData> &data) {
+            int numIndividuals = candidatePool.size();
+            int numInstances = data.size();
+            std::vector<std::vector<double> > scoreMatrix(numIndividuals, std::vector<double>(numInstances, 0.0));
+
+            if (numIndividuals == 0 || numInstances == 0) return scoreMatrix;
+
+            std::cout << "Building score matrix for " << numIndividuals << " individuals on " << numInstances <<
+                    " instances..." << std::endl;
+
+#pragma omp parallel for schedule(dynamic)
+            for (int i = 0; i < numIndividuals; ++i) {
+                HeuristicType localHeuristic = heuristicPrototype;
+                localHeuristic.setParams(candidatePool[i].genes.data(), candidatePool[i].genes.size());
+
+                for (int j = 0; j < numInstances; ++j) {
+                    auto solution = localHeuristic.run(data[j]);
+                    scoreMatrix[i][j] = solution.getObj(); // Zakładamy, że wyższy wynik (fill factor) jest lepszy
+                }
+            }
+            return scoreMatrix;
+        }
+
+        // 2. Szybki wybór specjalistów na podstawie gotowej macierzy (bez ewaluacji sieci)
+        std::vector<Individual> selectSpecialistsFromMatrix(const std::vector<Individual> &candidatePool,
+                                                            const std::vector<std::vector<double> > &scoreMatrix,
+                                                            int subsetSize) {
+            int numIndividuals = candidatePool.size();
+            if (numIndividuals == 0 || scoreMatrix.empty() || subsetSize <= 0) return {};
+            int numInstances = scoreMatrix[0].size();
+
+            std::vector<int> selectedIndices;
+            std::vector<bool> isSelected(numIndividuals, false);
+            std::vector<double> currentBestScores(numInstances, 0.0);
+
+            for (int k = 0; k < subsetSize; ++k) {
+                double bestMarginalGain = -1.0;
+                int bestCandidate = -1;
+
+                // Szukanie kandydata z największym przyrostem marginalnym
+                for (int i = 0; i < numIndividuals; ++i) {
+                    if (isSelected[i]) continue;
+
+                    double marginalGain = 0.0;
+                    for (int j = 0; j < numInstances; ++j) {
+                        if (scoreMatrix[i][j] > currentBestScores[j]) {
+                            marginalGain += (scoreMatrix[i][j] - currentBestScores[j]);
+                        }
+                    }
+
+                    if (marginalGain > bestMarginalGain) {
+                        bestMarginalGain = marginalGain;
+                        bestCandidate = i;
+                    }
+                }
+
+                if (bestCandidate != -1 && bestMarginalGain > 0.0) {
+                    selectedIndices.push_back(bestCandidate);
+                    isSelected[bestCandidate] = true;
+
+                    // Aktualizacja tabeli z najlepszymi obecnymi wynikami dla instancji
+                    for (int j = 0; j < numInstances; ++j) {
+                        if (scoreMatrix[bestCandidate][j] > currentBestScores[j]) {
+                            currentBestScores[j] = scoreMatrix[bestCandidate][j];
+                        }
+                    }
+                    std::cout << "Specialist " << k + 1 << "/" << subsetSize << " chosen. Marginal Gain: " <<
+                            bestMarginalGain << std::endl;
+                } else {
+                    std::cout << "Stopping early: No further improvement possible." << std::endl;
+                    break;
+                }
+            }
+
+            // Składanie docelowej grupy
+            std::vector<Individual> specialistSet;
+            for (int idx: selectedIndices) {
+                specialistSet.push_back(candidatePool[idx]);
+            }
+            return specialistSet;
+        }
+
         std::vector<double> getBestWeights() {
             return population[0].genes;
         }
@@ -348,6 +462,10 @@ namespace binpack {
                 uniqueWeights.push_back(ind.genes);
             }
             return uniqueWeights;
+        }
+
+        void setFinalPopulations(const std::vector<Individual> &loadedPopulations) {
+            finalPopulations = loadedPopulations;
         }
     };
 }
