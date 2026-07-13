@@ -206,16 +206,16 @@ int main() {
     evoParams.crossover = config::CROSSOVER;
     evoParams.validationCheckInterval = config::VALIDATION_CHECK_INTERVAL;
     evoParams.finalEvaluationWindow = config::FINAL_EVALUATION_WINDOW;
-    evoParams.specialistSetSize = config::SPECIALIST_SET_SIZE;
 
     std::cout << "Loading data..." << std::endl;
     std::vector<BinpackData> trainingDataset;
     std::vector<BinpackData> validationSet;
     std::vector<std::string> filenames = {
-        "ODPS_data_10_1-5_1",
-        "ODPS_data_10_1-5_2",
-        "ODPS_data_10_1-5_6",
-        "ODPS_data_10_1-5_16"
+        "SPP_1.txt",
+        "SPP_2.txt",
+        "SPP_3.txt",
+        "SPP_4.txt",
+        "SPP_5.txt",
     };
     DataLoaderOdp::loadTrainAndValidationFromMultipleFiles(filenames, trainingDataset, config::TRAINING_DATASET_SIZE,
                                                            validationSet, config::VALIDATION_DATASET_SIZE, true);
