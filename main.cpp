@@ -204,18 +204,18 @@ int main() {
     evoParams.mutationAnnealing = config::MUTATION_ANNEALING;
     evoParams.elitism = config::ELITISM;
     evoParams.crossover = config::CROSSOVER;
-    evoParams.validationCheckInterval = config::VALIDATION_CHECK_INTERVAL;
-    evoParams.finalEvaluationWindow = config::FINAL_EVALUATION_WINDOW;
+    evoParams.collectionStartPercent = config::COLLECTION_START_PERCENT;
+    evoParams.numPopulationsToCollect = config::NUM_POPULATIONS_TO_COLLECT;
 
     std::cout << "Loading data..." << std::endl;
     std::vector<BinpackData> trainingDataset;
     std::vector<BinpackData> validationSet;
     std::vector<std::string> filenames = {
-        "SPP_1.txt",
-        "SPP_2.txt",
-        "SPP_3.txt",
-        "SPP_4.txt",
-        "SPP_5.txt",
+        "SPP_1",
+        "SPP_2",
+        "SPP_3",
+        "SPP_4",
+        "SPP_5",
     };
     DataLoaderOdp::loadTrainAndValidationFromMultipleFiles(filenames, trainingDataset, config::TRAINING_DATASET_SIZE,
                                                            validationSet, config::VALIDATION_DATASET_SIZE, true);

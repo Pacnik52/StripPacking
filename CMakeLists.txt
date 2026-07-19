@@ -5,11 +5,11 @@ project(StripPacking)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(MSVC)
+if (MSVC)
     add_compile_options(/O2 /Oi /Ot /Oy /GL)
-else()
+else ()
     add_compile_options(-O3 -march=native)
-endif()
+endif ()
 
 include(FetchContent)
 
@@ -17,24 +17,27 @@ include(FetchContent)
 FetchContent_Declare(
         SFML
         GIT_REPOSITORY https://github.com/SFML/SFML.git
-        GIT_TAG        3.0.2
+        GIT_TAG 3.0.2
 )
 set(SFML_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SFML_BUILD_DOC OFF CACHE BOOL "" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(SFML_STATIC_LIBRARIES ON CACHE BOOL "" FORCE)
+add_definitions(-DSFML_STATIC)
 
 # Eingen
 FetchContent_Declare(
         Eigen
-        URL      https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
+        URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip
 )
 
 # Boost
+set(BOOST_ENABLE_CMAKE ON CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BOOST_INCLUDE_LIBRARIES serialization)
 FetchContent_Declare(
         Boost
         URL https://github.com/boostorg/boost/releases/download/boost-1.84.0/boost-1.84.0.tar.xz
 )
-set(BOOST_INCLUDE_LIBRARIES serialization)
 set(BOOST_ENABLE_CMAKE ON)
 
 FetchContent_MakeAvailable(SFML Eigen Boost)
@@ -53,6 +56,7 @@ add_executable(strippacker
         startegy/EvolutionaryAlgorithm.h
         startegy/BinpackConstructionHeuristic.h
         bin/BinpackData.h
+        consts.h
 )
 
 target_include_directories(strippacker PUBLIC
@@ -69,6 +73,6 @@ target_link_libraries(strippacker
         OpenMP::OpenMP_CXX
 )
 
-if(MINGW)
+if (MINGW)
     target_link_options(strippacker PRIVATE -fopenmp)
-endif()
+endif ()

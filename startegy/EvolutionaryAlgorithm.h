@@ -22,8 +22,8 @@ namespace binpack {
         int eliteSize = populationSize / 10;
         int tournamentSize = 5;
         bool crossover = false;
-        int validationCheckInterval = 10;
-        int finalEvaluationWindow = 100;
+        double collectionStartPercent = 0.9;
+        int numPopulationsToCollect = 10;
         int specialistSetSize = 10;
     };
 
@@ -80,6 +80,7 @@ namespace binpack {
             int genomeSize = heuristicPrototype.getParamsSize();
             std::cout << "Starting Specialist Evolution. Genome size: " << genomeSize << std::endl;
 
+            std::vector<int> targetGens = calculateTargetGenerations();
             for (int gen = 0; gen < params.generations; ++gen) {
                 // Wybór losowego batcha zadań
                 std::vector<BinpackData> batch;
@@ -182,10 +183,7 @@ namespace binpack {
                 if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
                     params.mutationSigma *= 0.98;
                 }
-
-                // Zbieranie populacji z ostatnich N generacji co K generacji
-                int lastGenStart = params.generations - params.finalEvaluationWindow;
-                if (gen >= lastGenStart && gen % params.validationCheckInterval == 0) {
+                if (std::binary_search(targetGens.begin(), targetGens.end(), gen)) {
                     for (const auto &ind: population) {
                         finalPopulations.push_back(ind);
                     }
@@ -199,6 +197,7 @@ namespace binpack {
             int genomeSize = heuristicPrototype.getParamsSize();
             std::cout << "Starting Normal Evolution. Genome size (weights): " << genomeSize << std::endl;
 
+            std::vector<int> targetGens = calculateTargetGenerations();
             for (int gen = 0; gen < params.generations; ++gen) {
                 // Wybór losowego batcha zadań
                 std::vector<BinpackData> batch;
@@ -257,8 +256,7 @@ namespace binpack {
                 }
 
                 // Zbieranie populacji z ostatnich N generacji co K generacji
-                int lastGenStart = params.generations - params.finalEvaluationWindow;
-                if (gen >= lastGenStart && gen % params.validationCheckInterval == 0) {
+                if (std::binary_search(targetGens.begin(), targetGens.end(), gen)) {
                     for (const auto &ind: population) {
                         finalPopulations.push_back(ind);
                     }
@@ -349,6 +347,26 @@ namespace binpack {
             return finalPopulations;
         }
 
+        std::vector<int> calculateTargetGenerations() const {
+            std::vector<int> targetGens;
+            if (params.numPopulationsToCollect > 0) {
+                int startGen = static_cast<int>(params.generations * params.collectionStartPercent);
+                startGen = std::max(0, std::min(startGen, params.generations - 1));
+
+                if (params.numPopulationsToCollect == 1) {
+                    targetGens.push_back(params.generations - 1);
+                } else {
+                    double step = static_cast<double>(params.generations - 1 - startGen) / (
+                                      params.numPopulationsToCollect - 1);
+                    for (int i = 0; i < params.numPopulationsToCollect; ++i) {
+                        int target = startGen + static_cast<int>(std::round(i * step));
+                        targetGens.push_back(target);
+                    }
+                }
+            }
+            return targetGens;
+        }
+
         // Ewaluuje zebrane populacje na zbiorze danych i zwraca wyniki
         std::vector<double> evaluateFinalPopulations(const std::vector<BinpackData> &data) {
             std::vector<double> results(finalPopulations.size(), 0.0);
@@ -367,7 +385,8 @@ namespace binpack {
             }
             return results;
         }
-  // 1. Zbudowanie macierzy wyników TYLKO RAZ
+
+        // 1. Zbudowanie macierzy wyników TYLKO RAZ
         std::vector<std::vector<double> > buildScoreMatrix(const std::vector<Individual> &candidatePool,
                                                            const std::vector<BinpackData> &data) {
             int numIndividuals = candidatePool.size();
