@@ -3,8 +3,6 @@
 #include <random>
 #include <algorithm>
 #include <iostream>
-#include <memory>
-#include <omp.h>
 #include <set>
 #include "BinpackConstructionHeuristic.h"
 #include "../bin_reader/DataLoaderOdp.h"
@@ -41,8 +39,8 @@ namespace binpack {
     private:
         EvoParams params;
         HeuristicType heuristicPrototype;
-        std::vector<BinpackData> allTrainingData;
-        std::vector<BinpackData> validationData;
+        const std::vector<BinpackData> &allTrainingData;
+        const std::vector<BinpackData> &validationData;
         std::mt19937 rng;
         std::vector<Individual> population;
         std::vector<Individual> finalPopulations;
@@ -52,7 +50,7 @@ namespace binpack {
         EvolutionaryAlgorithm(const EvoParams &_params,
                               const HeuristicType &_heuristic,
                               const std::vector<BinpackData> &_data,
-                              const std::vector<BinpackData> &_validation = {})
+                              const std::vector<BinpackData> &_validation)
             : params(_params), heuristicPrototype(_heuristic), allTrainingData(_data), validationData(_validation) {
             std::random_device rd;
             rng.seed(rd());
@@ -229,8 +227,8 @@ namespace binpack {
                 // Rodzice wybierani selekcja turniejowa
                 if (params.crossover) {
                     while (newPop.size() < params.populationSize) {
-                        const auto &p1 = tournamentSelect();
-                        const auto &p2 = tournamentSelect();
+                        const auto p1 = tournamentSelect();
+                        const auto p2 = tournamentSelect();
 
                         Genome childGenes = crossover(p1.genes, p2.genes);
                         mutate(childGenes);
@@ -239,7 +237,7 @@ namespace binpack {
                     }
                 } else {
                     while (newPop.size() < params.populationSize) {
-                        const auto &p1 = tournamentSelect();
+                        const auto p1 = tournamentSelect();
 
                         Genome childGenes = p1.genes;
                         mutate(childGenes);

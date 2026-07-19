@@ -8,9 +8,6 @@
 #include <filesystem>
 
 namespace nnutils {
-    using namespace std;
-    using namespace Eigen;
-
     class FFN {
         friend class boost::serialization::access;
 
@@ -36,8 +33,10 @@ namespace nnutils {
         Config conf;
 
         // Macierze wag i wektory biasów
-        MatrixXd W1, W2, W3;
-        VectorXd b1, b2, b3;
+        Eigen::MatrixXd W1, W2, W3;
+        Eigen::VectorXd b1, b2, b3;
+
+        Eigen::VectorXd h1_buffer, h2_buffer, out_buffer;
 
         // Całkowita liczba parametrów
         int totalParams;
@@ -58,12 +57,15 @@ namespace nnutils {
                           (conf.hidden2Size * conf.outputSize) + conf.outputSize;
 
             // Inicjalizacja macierzy zerami (zostaną nadpisane przez setParams)
-            W1 = MatrixXd::Zero(conf.hidden1Size, conf.inputSize);
-            b1 = VectorXd::Zero(conf.hidden1Size);
-            W2 = MatrixXd::Zero(conf.hidden2Size, conf.hidden1Size);
-            b2 = VectorXd::Zero(conf.hidden2Size);
-            W3 = MatrixXd::Zero(conf.outputSize, conf.hidden2Size);
-            b3 = VectorXd::Zero(conf.outputSize);
+            W1 = Eigen::MatrixXd::Zero(conf.hidden1Size, conf.inputSize);
+            b1 = Eigen::VectorXd::Zero(conf.hidden1Size);
+            W2 = Eigen::MatrixXd::Zero(conf.hidden2Size, conf.hidden1Size);
+            b2 = Eigen::VectorXd::Zero(conf.hidden2Size);
+            W3 = Eigen::MatrixXd::Zero(conf.outputSize, conf.hidden2Size);
+            b3 = Eigen::VectorXd::Zero(conf.outputSize);
+            h1_buffer.resize(conf.hidden1Size);
+            h2_buffer.resize(conf.hidden2Size);
+            out_buffer.resize(conf.outputSize);
         }
 
         int getParamsSize() const {
@@ -84,7 +86,7 @@ namespace nnutils {
             file << conf.inputSize << " " << conf.hidden1Size << " "
                     << conf.hidden2Size << " " << conf.outputSize << "\n";
 
-            auto writeMatrix = [&](const MatrixXd &m) {
+            auto writeMatrix = [&](const Eigen::MatrixXd &m) {
                 for (int r = 0; r < m.rows(); ++r) {
                     for (int c = 0; c < m.cols(); ++c) {
                         file << m(r, c) << " ";
@@ -93,7 +95,7 @@ namespace nnutils {
                 }
             };
 
-            auto writeVector = [&](const VectorXd &v) {
+            auto writeVector = [&](const Eigen::VectorXd &v) {
                 for (int i = 0; i < v.size(); ++i) {
                     file << v(i) << " ";
                 }
@@ -154,29 +156,29 @@ namespace nnutils {
 
             // Warstwa 1
             int w1_size = conf.inputSize * conf.hidden1Size;
-            W1 = Map<const Matrix<double, Dynamic, Dynamic, RowMajor>>(params + offset, conf.hidden1Size,
-                                                                       conf.inputSize);
+            W1 = Eigen::Map<const Eigen::MatrixXd>(params + offset, conf.hidden1Size,
+                                                   conf.inputSize);
             offset += w1_size;
 
-            b1 = Map<const VectorXd>(params + offset, conf.hidden1Size);
+            b1 = Eigen::Map<const Eigen::VectorXd>(params + offset, conf.hidden1Size);
             offset += conf.hidden1Size;
 
             // Warstwa 2
             int w2_size = conf.hidden1Size * conf.hidden2Size;
-            W2 = Map<const Matrix<double, Dynamic, Dynamic, RowMajor>>(params + offset, conf.hidden2Size,
-                                                                       conf.hidden1Size);
+            W2 = Eigen::Map<const Eigen::MatrixXd>(params + offset, conf.hidden2Size,
+                                                   conf.hidden1Size);
             offset += w2_size;
 
-            b2 = Map<const VectorXd>(params + offset, conf.hidden2Size);
+            b2 = Eigen::Map<const Eigen::VectorXd>(params + offset, conf.hidden2Size);
             offset += conf.hidden2Size;
 
             // Warstwa Wyjściowa
             int w3_size = conf.hidden2Size * conf.outputSize;
-            W3 = Map<const Matrix<double, Dynamic, Dynamic, RowMajor>>(params + offset, conf.outputSize,
-                                                                       conf.hidden2Size);
+            W3 = Eigen::Map<const Eigen::MatrixXd>(params + offset, conf.outputSize,
+                                                   conf.hidden2Size);
             offset += w3_size;
 
-            b3 = Map<const VectorXd>(params + offset, conf.outputSize);
+            b3 = Eigen::Map<const Eigen::VectorXd>(params + offset, conf.outputSize);
         }
 
         void getParams(double *params, int n) const {
@@ -211,19 +213,16 @@ namespace nnutils {
                 return -1e9;
             }
 
-            // Konwersja float array na VectorXd
-            VectorXd x = Map<const VectorXf>(inputs, size).cast<double>();
-
             // Warstwa 1: Linear + Tanh
-            VectorXd h1 = (W1 * x + b1).array().tanh();
-
+            h1_buffer.noalias() = W1 * Eigen::Map<const Eigen::VectorXf>(inputs, size).cast<double>() + b1;
+            h1_buffer = h1_buffer.array().tanh(); // in-place
             // Warstwa 2: Linear + Tanh
-            VectorXd h2 = (W2 * h1 + b2).array().tanh();
-
+            h2_buffer.noalias() = W2 * h1_buffer + b2;
+            h2_buffer = h2_buffer.array().tanh(); // in-place
             // Warstwa Wyjściowa
-            VectorXd out = W3 * h2 + b3;
+            out_buffer.noalias() = W3 * h2_buffer + b3;
 
-            return out(0);
+            return out_buffer(0);
         }
 
         // Zapisuje całą populację sieci do plików w podanym folderze

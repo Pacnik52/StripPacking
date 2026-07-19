@@ -2,7 +2,6 @@
 #include <string>
 #include <cfloat>
 #include <random>
-#include <cassert>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <Eigen/Dense>
@@ -13,9 +12,6 @@
 #include "../utils.h"
 
 namespace binpack {
-    using namespace std;
-    using namespace Eigen;
-
     template<typename AFType>
     class BinpackConstructionHeuristic {
         friend class boost::serialization::access;
@@ -77,11 +73,12 @@ namespace binpack {
 
         CornerPoints CP;
 
-        vector<int> View1D;
+        std::vector<int> View1D;
+        std::vector<int> View1D_backup;
         int gridSize = -1;
 
-        vector<int> Q;
-        vector<double> BA;
+        std::vector<int> Q;
+        std::vector<double> BA;
 
         vector<float> Properties;
 
@@ -204,7 +201,13 @@ namespace binpack {
 
         void initBin(const DataType &IOD) {
             binVolInserted = 0;
-            View1D.assign((IOD.PSizeY - 1) / gridSize + 1, 0);
+            int viewSize = (IOD.PSizeY - 1) / gridSize + 1;
+
+            View1D.assign(viewSize, 0);
+            View1D_backup.reserve(viewSize);
+
+            Properties.reserve(PROPERTIES_SIZE);
+
             CP = CornerPoints(PSizeX, IOD.PSizeY);
 
             if (Conf.stripPacking) {
@@ -283,7 +286,7 @@ namespace binpack {
             int best_i = -1;
             double best_eval = -DBL_MAX;
 
-            auto View1DTmp = View1D;
+            View1D_backup = View1D;
             int x_max_tmp = x_max;
 
             for (int i = 0; i < EvaList.size(); i++) {
@@ -312,7 +315,7 @@ namespace binpack {
                     best_i = i;
                 }
 
-                View1D = View1DTmp;
+                View1D = View1D_backup;
                 x_max = x_max_tmp;
             }
 

@@ -2,7 +2,6 @@
 #include <vector>
 #include <string>
 #include <filesystem>
-#include <omp.h>
 #include "Consts.h"
 #include "startegy/FFN.h"
 #include "startegy/BinpackConstructionHeuristic.h"
@@ -218,7 +217,6 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
 }
 
 int main() {
-    omp_set_num_threads(16);
     nnutils::FFN::Config ffnConfig;
     BinpackConstructionHeuristic<nnutils::FFN>::ConfigType heuristicConfig;
     BinpackConstructionHeuristic<nnutils::FFN> heuristic(heuristicConfig);
