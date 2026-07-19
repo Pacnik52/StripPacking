@@ -21,6 +21,9 @@ namespace binpack {
             }
         }
 
+        void save_summary_statistics(const std::vector<double> &best_results, const std::string &outputDir,
+                                     const std::string &fileId);
+
         void print_solutions(std::vector<BinpackData> &datasets, BinpackConstructionHeuristic<nnutils::FFN> &heuristic,
                              const std::string &outputDir, bool draw_all_solutions);
 
