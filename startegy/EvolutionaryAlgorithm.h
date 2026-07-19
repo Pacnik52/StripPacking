@@ -474,6 +474,39 @@ namespace binpack {
             return population[0].genes;
         }
 
+        std::vector<double> getBestWeightsFromValidation() {
+            if (finalPopulations.empty()) {
+                std::cout << "No populations collected. Falling back to best training individual." << std::endl;
+                return getBestWeights();
+            }
+            if (validationData.empty()) {
+                std::cout << "Warning: Validation dataset is empty! Falling back to best training individual." <<
+                        std::endl;
+                return getBestWeights();
+            }
+
+            // Ewaluacja zebranych osobników na wbudowanym zbiorze walidacyjnym
+            std::cout << "Evaluating " << finalPopulations.size() << " collected individuals on the validation set..."
+                    << std::endl;
+            std::vector<double> validationScores = evaluateFinalPopulations(validationData);
+
+            // Wybór jednego, globalnie najlepszego osobnika
+            double bestScore = -DBL_MAX;
+            int bestIdx = -1;
+            for (size_t i = 0; i < validationScores.size(); ++i) {
+                if (validationScores[i] > bestScore) {
+                    bestScore = validationScores[i];
+                    bestIdx = i;
+                }
+            }
+
+            std::cout << "Best global model found on validation set!" << std::endl;
+            std::cout << "Validation Avg Fill Factor: " << bestScore
+                    << " (from collected individual #" << bestIdx << ")" << std::endl;
+
+            return finalPopulations[bestIdx].genes;
+        }
+
         // Zwraca populacje bez duplikatow
         std::vector<std::vector<double> > getUniquePopulation() {
             std::vector<std::vector<double> > uniqueWeights;

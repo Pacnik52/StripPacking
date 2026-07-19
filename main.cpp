@@ -147,13 +147,17 @@ void specialist_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnut
                                         ffnConfig);
         }
     } else {
+        // Przygotowanie folderów
+        std::string dateStr = getCurrentDateString();
+        std::string baseDir = "../results_specialist/" + dateStr;
+        std::string resultsDir = baseDir + "/results";
+        std::filesystem::create_directories(resultsDir);
+
         allWeights = nnutils::FFN::load_population(config::ONLY_RESULTS_MODE_WEIGHTS_DIR);
         if (allWeights.empty()) {
             std::cerr << "Error: Failed to load models from " << config::ONLY_RESULTS_MODE_WEIGHTS_DIR << std::endl;
             return;
         }
-        std::string resultsDir = "../results_specialists/specialists_results_" + getCurrentDateString();
-        std::filesystem::create_directories(resultsDir);
 
         BinDrawer drawer;
         drawer.print_specialist_results(validationSet, allWeights, heuristic, resultsDir, "all",
@@ -166,18 +170,41 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
                       std::vector<BinpackData> &validationSet) {
     EvolutionaryAlgorithm ea(evoParams, heuristic, trainingSet, validationSet);
     vector<double> bestWeights;
+    std::vector<std::vector<double> > allWeights;
     if (config::TRAINING_MODE) {
         ea.run_normal();
-        bestWeights = ea.getBestWeights();
-        heuristic.setParams(bestWeights.data(), bestWeights.size());
-        cout << "Training finished. Best weights found." << endl;
-        BinDrawer drawer;
-        drawer.print_solutions(trainingSet, heuristic, "../solutions", config::DRAW_ALL_SOLUTIONS);
+        auto collectedPopulations = ea.getFinalPopulations();
+        std::cout << "Total collected individuals from final generations: " << collectedPopulations.size() << std::endl;
+        for (const auto &ind: collectedPopulations) {
+            allWeights.push_back(ind.genes);
+        }
+        // Przygotowanie folderów
+        std::string dateStr = getCurrentDateString();
+        std::string baseDir = "../results_normal/" + dateStr;
+        std::string resultsDir = baseDir + "/results";
+        std::string weightsDir = baseDir + "/weights";
+        std::filesystem::create_directories(resultsDir);
+        std::filesystem::create_directories(weightsDir);
 
+        std::cout << "Saving ALL loaded weights and calculating their global results..." << std::endl;
+        config::saveConfig(baseDir + "/params_" + dateStr + ".txt");
+        nnutils::FFN::save_population(weightsDir + "/weights_all", allWeights, ffnConfig);
+
+        std::cout << "Saving best weights and calculating global results..." << std::endl;
+        bestWeights = ea.getBestWeightsFromValidation();
+        heuristic.setParams(bestWeights.data(), bestWeights.size());
+        BinDrawer drawer;
+        drawer.print_solutions(validationSet, heuristic, resultsDir, config::DRAW_ALL_SOLUTIONS);
         nnutils::FFN tempNet(ffnConfig);
         tempNet.setParams(bestWeights.data(), bestWeights.size());
-        tempNet.save("../best_models", "best_model");
+        tempNet.save(weightsDir, "best_model");
     } else {
+        // Przygotowanie folderów
+        std::string dateStr = getCurrentDateString();
+        std::string baseDir = "../results_normal/" + dateStr;
+        std::string resultsDir = baseDir + "/results";
+        std::filesystem::create_directories(resultsDir);
+
         nnutils::FFN tempNet(ffnConfig);
         if (!tempNet.load("../best_models/new_best_best_model")) {
             std::cerr << "Error: Could not load model from " << "../best_models" << std::endl;
@@ -186,7 +213,7 @@ void normal_evolution(EvoParams evoParams, BinpackConstructionHeuristic<nnutils:
         tempNet.getParams(bestWeights.data(), bestWeights.size());
         heuristic.setParams(bestWeights.data(), bestWeights.size());
         BinDrawer drawer;
-        drawer.print_solutions(trainingSet, heuristic, "../solutions", config::DRAW_ALL_SOLUTIONS);
+        drawer.print_solutions(trainingSet, heuristic, resultsDir, config::DRAW_ALL_SOLUTIONS);
     }
 }
 

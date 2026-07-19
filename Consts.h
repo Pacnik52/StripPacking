@@ -12,8 +12,10 @@ namespace binpack {
         inline const bool SPECIALIST_EVOLUTION = true;
         inline const bool TRAINING_MODE = true;
         inline const bool ONLY_SELECTION_MODE = false;
-        inline const std::string SELECTION_MODE_WEIGHTS_DIR = "../best_models_specialists_whole_final_1/";
-        inline const std::string ONLY_RESULTS_MODE_WEIGHTS_DIR = "na razie nie ma :)";
+        inline const std::string SELECTION_MODE_WEIGHTS_DIR =
+                "../results_specialist/2026.07.02_08.44/weights/weights_all/";
+        inline const std::string ONLY_RESULTS_MODE_WEIGHTS_DIR =
+                "../results_specialist/2026.07.02_08.44/weights/weights_20/";;
 
         // Parametry algorytmu ewolucyjnego (EvoParams)
         inline const int POPULATION_SIZE = 100;
