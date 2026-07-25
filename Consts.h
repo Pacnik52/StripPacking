@@ -7,8 +7,8 @@ namespace binpack {
     namespace config {
         // Główne tryby i ścieżki
         inline const bool DRAW_ALL_SOLUTIONS = false;
-        inline const int TRAINING_DATASET_SIZE = 500;
-        inline const int VALIDATION_DATASET_SIZE = 100;
+        inline const int TRAINING_DATASET_SIZE = 500000;
+        inline const int VALIDATION_DATASET_SIZE = 10000;
         inline const bool SPECIALIST_EVOLUTION = true;
         inline const bool TRAINING_MODE = true;
         inline const bool ONLY_SELECTION_MODE = false;
@@ -18,13 +18,13 @@ namespace binpack {
                 "../results_specialist/2026.07.02_08.44/weights/weights_20/";;
 
         // Parametry algorytmu ewolucyjnego (EvoParams)
-        inline const int POPULATION_SIZE = 100;
-        inline const int GENERATIONS = 100;
-        inline const int BATCH_SIZE = 10;
-        inline const double MUTATION_SIGMA = 0.2;
-        inline const bool MUTATION_ANNEALING = true;
+        inline const int POPULATION_SIZE = 250;
+        inline const int GENERATIONS = 10000;
+        inline const int BATCH_SIZE = 100;
+        inline const double MUTATION_SIGMA = 0.1;
+        inline const bool MUTATION_ANNEALING = false;
         inline const bool ELITISM = true;
-        inline const bool CROSSOVER = true;
+        inline const bool CROSSOVER = false;
 
         inline const double COLLECTION_START_PERCENT = 0.9; // np. 0.9 to zbiór z ostatnich 10% generacji
         inline const int NUM_POPULATIONS_TO_COLLECT = 10; // Ile populacji z tego okna chcemy zebrać
@@ -40,8 +40,6 @@ namespace binpack {
             file << "=== APP CONFIG ===" << "\n";
             file << "DRAW_ALL_SOLUTIONS = " << (DRAW_ALL_SOLUTIONS ? "true" : "false") << "\n";
             file << "TRAINING_DATASET_SIZE = " << TRAINING_DATASET_SIZE << "\n";
-            file << "VALIDATION_DATASET_SIZE = " << VALIDATION_DATASET_SIZE << "\n";
-            file << "SPECIALIST_EVOLUTION = " << (SPECIALIST_EVOLUTION ? "true" : "false") << "\n";
             file << "TRAINING_MODE = " << (TRAINING_MODE ? "true" : "false") << "\n";
             file << "ONLY_SELECTION_MODE = " << (ONLY_SELECTION_MODE ? "true" : "false") << "\n";
             file << "SELECTION_MODE_WEIGHTS_DIR = " << SELECTION_MODE_WEIGHTS_DIR << "\n";
