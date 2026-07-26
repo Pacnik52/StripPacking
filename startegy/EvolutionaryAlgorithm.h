@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include <set>
+#include <cmath>
 #include "BinpackConstructionHeuristic.h"
 #include "../bin_reader/DataLoaderOdp.h"
 
@@ -16,6 +17,8 @@ namespace binpack {
         double mutationSigma = 0.1;
         bool mutationAnnealing = true;
         double crossoverRate = 0.8;
+        double minSigma = 0.05;
+        double decayFactor = 1.0;
         bool elitism = true;
         int eliteSize = populationSize / 10;
         int tournamentSize = 5;
@@ -78,6 +81,12 @@ namespace binpack {
             int genomeSize = heuristicPrototype.getParamsSize();
             std::cout << "Starting Specialist Evolution. Genome size: " << genomeSize << std::endl;
 
+            if (params.mutationAnnealing && params.mutationSigma > params.minSigma && params.generations > 0) {
+                params.decayFactor = std::pow(params.minSigma / params.mutationSigma, 1.0 / params.generations);
+            } else {
+                std::cout << "Stopping early: Mutation Annealing parameters conflict." << std::endl;
+                return;
+            }
             std::vector<int> targetGens = calculateTargetGenerations();
             for (int gen = 0; gen < params.generations; ++gen) {
                 // Wybór losowego batcha zadań
@@ -178,8 +187,11 @@ namespace binpack {
                 population = std::move(newPop);
 
                 // Zmiejszanie mutacji w kolejnych generacjach
-                if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
-                    params.mutationSigma *= 0.98;
+                if (params.mutationAnnealing && params.mutationSigma > params.minSigma) {
+                    params.mutationSigma *= params.decayFactor;
+                    if (params.mutationSigma < params.minSigma) {
+                        params.mutationSigma = params.minSigma;
+                    }
                 }
                 if (std::binary_search(targetGens.begin(), targetGens.end(), gen)) {
                     for (const auto &ind: population) {
@@ -195,6 +207,12 @@ namespace binpack {
             int genomeSize = heuristicPrototype.getParamsSize();
             std::cout << "Starting Normal Evolution. Genome size (weights): " << genomeSize << std::endl;
 
+            if (params.mutationAnnealing && params.mutationSigma > params.minSigma && params.generations > 0) {
+                params.decayFactor = std::pow(params.minSigma / params.mutationSigma, 1.0 / params.generations);
+            } else {
+                std::cout << "Stopping early: Mutation Annealing parameters conflict." << std::endl;
+                return;
+            }
             std::vector<int> targetGens = calculateTargetGenerations();
             for (int gen = 0; gen < params.generations; ++gen) {
                 // Wybór losowego batcha zadań
@@ -249,8 +267,11 @@ namespace binpack {
                 population = std::move(newPop);
 
                 // Zmiejszanie mutacji w kolejnych generacjach
-                if (params.mutationAnnealing && gen % 20 == 0 && params.mutationSigma > 0.05) {
-                    params.mutationSigma *= 0.98;
+                if (params.mutationAnnealing && params.mutationSigma > params.minSigma) {
+                    params.mutationSigma *= params.decayFactor;
+                    if (params.mutationSigma < params.minSigma) {
+                        params.mutationSigma = params.minSigma;
+                    }
                 }
 
                 // Zbieranie populacji z ostatnich N generacji co K generacji

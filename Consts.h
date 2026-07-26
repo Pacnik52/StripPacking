@@ -22,6 +22,7 @@ namespace binpack {
         inline const int GENERATIONS = 10000;
         inline const int BATCH_SIZE = 100;
         inline const double MUTATION_SIGMA = 0.1;
+        inline const double MUTATION_RATE = 0.1;
         inline const bool MUTATION_ANNEALING = false;
         inline const bool ELITISM = true;
         inline const bool CROSSOVER = false;
@@ -50,6 +51,7 @@ namespace binpack {
             file << "generations = " << GENERATIONS << "\n";
             file << "batchSize = " << BATCH_SIZE << "\n";
             file << "mutationSigma = " << MUTATION_SIGMA << "\n";
+            file << "mutationRate = " << MUTATION_RATE << "\n";
             file << "mutationAnnealing = " << (MUTATION_ANNEALING ? "true" : "false") << "\n";
             file << "elitism = " << (ELITISM ? "true" : "false") << "\n";
             file << "crossover = " << (CROSSOVER ? "true" : "false") << "\n";

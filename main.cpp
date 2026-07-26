@@ -226,6 +226,7 @@ int main() {
     evoParams.generations = config::GENERATIONS;
     evoParams.batchSize = config::BATCH_SIZE;
     evoParams.mutationSigma = config::MUTATION_SIGMA;
+    evoParams.mutationRate = config::MUTATION_RATE;
     evoParams.mutationAnnealing = config::MUTATION_ANNEALING;
     evoParams.elitism = config::ELITISM;
     evoParams.crossover = config::CROSSOVER;
