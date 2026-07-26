@@ -80,12 +80,13 @@ namespace binpack {
         void run() {
             int genomeSize = heuristicPrototype.getParamsSize();
             std::cout << "Starting Specialist Evolution. Genome size: " << genomeSize << std::endl;
-
-            if (params.mutationAnnealing && params.mutationSigma > params.minSigma && params.generations > 0) {
-                params.decayFactor = std::pow(params.minSigma / params.mutationSigma, 1.0 / params.generations);
-            } else {
-                std::cout << "Stopping early: Mutation Annealing parameters conflict." << std::endl;
-                return;
+            if (params.mutationAnnealing) {
+                if (params.mutationSigma > params.minSigma && params.generations > 0) {
+                    params.decayFactor = std::pow(params.minSigma / params.mutationSigma, 1.0 / params.generations);
+                } else {
+                    std::cout << "Stopping early: Mutation Annealing parameters conflict." << std::endl;
+                    return;
+                }
             }
             std::vector<int> targetGens = calculateTargetGenerations();
             for (int gen = 0; gen < params.generations; ++gen) {
@@ -207,11 +208,13 @@ namespace binpack {
             int genomeSize = heuristicPrototype.getParamsSize();
             std::cout << "Starting Normal Evolution. Genome size (weights): " << genomeSize << std::endl;
 
-            if (params.mutationAnnealing && params.mutationSigma > params.minSigma && params.generations > 0) {
-                params.decayFactor = std::pow(params.minSigma / params.mutationSigma, 1.0 / params.generations);
-            } else {
-                std::cout << "Stopping early: Mutation Annealing parameters conflict." << std::endl;
-                return;
+            if (params.mutationAnnealing) {
+                if (params.mutationSigma > params.minSigma && params.generations > 0) {
+                    params.decayFactor = std::pow(params.minSigma / params.mutationSigma, 1.0 / params.generations);
+                } else {
+                    std::cout << "Stopping early: Mutation Annealing parameters conflict." << std::endl;
+                    return;
+                }
             }
             std::vector<int> targetGens = calculateTargetGenerations();
             for (int gen = 0; gen < params.generations; ++gen) {
