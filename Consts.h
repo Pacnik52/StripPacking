@@ -21,16 +21,18 @@ namespace binpack {
         inline const int POPULATION_SIZE = 250;
         inline const int GENERATIONS = 10000;
         inline const int BATCH_SIZE = 100;
-        inline const double MUTATION_SIGMA = 0.1;
-        inline const double MUTATION_RATE = 0.1;
+        inline const double MUTATION_SIGMA = 0.5;
+        inline const double MUTATION_RATE = 0.00087;
+
         inline const bool MUTATION_ANNEALING = false;
         inline const bool ELITISM = true;
-        inline const bool CROSSOVER = false;
+        inline const double ELITE_SIZE = POPULATION_SIZE / 5;
+        inline const bool CROSSOVER = true;
+        inline const double CROSSOVER_RATE = 0.9;
 
         inline const double COLLECTION_START_PERCENT = 0.9; // np. 0.9 to zbiór z ostatnich 10% generacji
         inline const int NUM_POPULATIONS_TO_COLLECT = 10; // Ile populacji z tego okna chcemy zebrać
 
-        // Funkcja zapisująca konfigurację do pliku
         inline void saveConfig(const std::string &filepath) {
             std::ofstream file(filepath);
             if (!file.is_open()) {
@@ -54,6 +56,7 @@ namespace binpack {
             file << "mutationRate = " << MUTATION_RATE << "\n";
             file << "mutationAnnealing = " << (MUTATION_ANNEALING ? "true" : "false") << "\n";
             file << "elitism = " << (ELITISM ? "true" : "false") << "\n";
+            file << "eliteSize = " << ELITE_SIZE << "\n";
             file << "crossover = " << (CROSSOVER ? "true" : "false") << "\n";
 
             file << "collectionStartPercent = " << COLLECTION_START_PERCENT << "\n";
